@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+
+# 자동 생성/수정 파일
+package.json
+**/package.json
+package-lock.json
+**/package-lock.json
+
+# Build outputs
+dist/
+build/
+*.min.js
+
+# GAS 인증 정보 (절대 포맷 금지)
+.clasprc.json
+**/.clasprc.json
+
+# Google Apps Script files (.gs)
+# clasp은 .js만 사용하므로 .gs는 제외
+**/*.gs
+
+# 외부 라이브러리 복사본 (필요시)
+**/vendor/*.js
+**/lib/*.js
+
+# GAS HTML 파일 제외 (header/footer 분할 구조로 인한 Prettier 오작동 방지)
+projects/**/*.html
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+CHANGELOG.md
+LICENSE

@@ -1,0 +1,23 @@
+#!/bin/sh
+
+echo "🔍 커밋 메시지 검증 중..."
+
+npx --no-install commitlint --edit "$1" || {
+  echo ""
+  echo "❌ 커밋 메시지 형식이 올바르지 않습니다!"
+  echo ""
+  echo "올바른 형식: <type>: <subject>"
+  echo ""
+  echo "예시:"
+  echo "  feat: Add new feature"
+  echo "  fix: Fix bug in login"
+  echo "  docs: Update README"
+  echo ""
+  echo "허용된 type:"
+  echo "  feat, fix, docs, style, refactor, test, chore, ci, perf, revert"
+  echo ""
+  exit 1
+}
+
+echo "✅ 커밋 메시지 검증 통과!"
+

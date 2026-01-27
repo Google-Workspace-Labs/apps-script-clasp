@@ -1,0 +1,12 @@
+#!/bin/sh
+
+echo "🧹 코드 스타일 검사 중..."
+
+npx lint-staged || {
+  echo ""
+  echo "❌ 코드 스타일 에러 발생!"
+  echo "👉 npm run format 또는 npm run lint:fix로 수정 후 다시 시도하세요."
+  exit 1
+}
+
+echo "✅ 검사 통과! 커밋을 진행합니다. 🎉"
