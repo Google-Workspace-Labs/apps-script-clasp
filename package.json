@@ -1,0 +1,52 @@
+{
+  "name": "apps-script-clasp",
+  "version": "1.0.0",
+  "description": "Personal workspace for developing Google Apps Script projects using clasp",
+  "private": true,
+  "author": "mone",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Google-Workspace-Labs/apps-script-clasp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Google-Workspace-Labs/apps-script-clasp/issues"
+  },
+  "homepage": "https://github.com/Google-Workspace-Labs/apps-script-clasp#readme",
+  "keywords": [
+    "google-apps-script",
+    "javascript",
+    "monorepo",
+    "clasp",
+    "gas"
+  ],
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "format": "prettier --write 'projects/**/*.{js,json}'",
+    "format:check": "prettier --check 'projects/**/*.{js,json}'",
+    "lint": "eslint 'projects/**/*.js'",
+    "lint:fix": "eslint --fix 'projects/**/*.js'"
+  },
+  "lint-staged": {
+    "projects/**/*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "projects/**/*.json": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.3.1",
+    "@commitlint/config-conventional": "^20.3.1",
+    "@google/clasp": "^3.1.3",
+    "@types/google-apps-script": "^1.0.83",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8",
+    "glob": "^10.3.10",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5"
+  }
+}
