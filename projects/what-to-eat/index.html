@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>오늘 뭐 먹지?</title>
+    <?!= include('style'); ?>
+    <!-- style.html 파일을 포함 -->
+  </head>
+  <body>
+    <div class="circle1"></div>
+    <div class="circle2"></div>
+    <div class="main">
+      <div class="container">
+        <h2 class="title">오늘 뭐 먹지?</h2>
+        <div class="add-column">
+          <input class="add-input" type="text" />
+          <button class="add-btn">Add</button>
+        </div>
+      </div>
+      <ul class="list"></ul>
+      <button class="roll-btn">Roll</button>
+    </div>
+    <?!= include('script'); ?>
+    <!-- script.html 파일을 포함 -->
+  </body>
+</html>
