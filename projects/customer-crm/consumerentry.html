@@ -1,0 +1,469 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+  
+      <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+<style>
+         #imagePreview {
+         width: 100%;
+         max-width: 80px;
+         height: auto;
+         overflow: hidden;
+         }
+         #imagePreview img {
+         width: 100%;
+         }
+         .modal-lg-custom {
+         max-width: 90% !important;
+         }
+         .img-container {
+         max-width: 100%;
+         max-height: 400px;
+         overflow: hidden;
+         }
+         .img-container img {
+         max-width: 100%;
+         }
+         .consumer-image {
+         width: 80px;
+         height: 80px;
+         object-fit: cover;
+         }
+         .edit-btn {
+         margin-right: 5px;
+         }
+         .container {
+         display: flex;
+         flex-wrap: wrap;
+         }
+         #form-container {
+         flex: 1;
+         min-width: 300px;
+         max-width: 90%;
+         margin-right:10px;
+         flex: 1;
+
+          margin-top: 18px;
+         }
+    
+         .fixed-header {
+         position: sticky;
+         top: 0;
+         z-index: 100;
+         background-color: white;
+         padding-bottom: 10px;
+         }
+
+        .form-group {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+        }
+         .form-group label {
+         flex: 0 0 150px;
+         margin-bottom: 0;
+         }
+         .form-group input, .form-group select {
+         flex: 1;
+         }
+
+         #imagePreview {
+         width: 100%;
+         max-width: 80px;
+         height: auto;
+         overflow: hidden;
+         }
+         #imagePreview img {
+         width: 100%;
+         }
+         .modal-lg-custom {
+         max-width: 90% !important;
+         }
+         .img-container {
+         max-width: 100%;
+         max-height: 400px;
+         overflow: hidden;
+         }
+         .img-container img {
+         max-width: 100%;
+         }
+         .image-wrapper {
+         position: relative;
+         display: inline-block;
+         margin: 10px;
+         }
+         .image-wrapper img {
+         width: 100px;
+         height: 100px;
+         object-fit: cover;
+         border: 1px solid #ddd;
+         border-radius: 5px;
+         }
+         .image-wrapper button {
+         position: absolute;
+         top: 5px;
+         right: 5px;
+         border: none;
+         background: red;
+         color: white;
+         width: 20px;
+         height: 20px;
+         text-align: center;
+         font-size: 14px;
+         line-height: 18px;
+         cursor: pointer;
+         border-radius: 50%;
+         }
+         #zoomedImage {
+         max-width: 100%;
+         max-height: 80vh;
+         border: 1px solid #ddd;
+         border-radius: 5px;
+         }
+      </style>
+
+
+
+       <div class="container" style="max-width:95%;background: #ffffffb0;margin-top: 30px;padding-bottom: 30px;border-radius: 10px;">
+        <div id="form-container">
+            <div class="text-center mb-4">
+              <p class="text-secondary">Easily upload consumer details along with multiple images.</p>
+            </div>
+            <form id="consumerForm">
+              <input type="hidden" id="rowIndex" name="rowIndex">
+              <div class="form-group">
+                  <label for="name">Name</label>
+                  <input type="text" class="form-control" id="name" name="name" required>
+              </div>
+              <div class="form-group">
+                  <label for="address">Address</label>
+                  <input type="text" class="form-control" id="address" name="address" required>
+              </div>
+              <div class="form-group">
+                  <label for="Mobile No">Mobile No</label>
+                  <input type="text" class="form-control" id="mobileno" name="mobileno" required>
+              </div>
+              <div class="form-group">
+                  <label for="Email No">Email</label>
+                  <input type="text" class="form-control" id="email" name="email" required>
+              </div>
+
+              <div class="form-group">
+                  <label for="Age">Age</label>
+                  <input type="text" class="form-control" id="age" name="age" required>
+              </div>
+              <div class="form-group">
+                  <label for="gender">Gender</label>
+                  <select class="form-control" id="gender" name="gender" required>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Transgender">Transgender</option>
+                    <option value="Others">Others</option>
+                  </select>
+              </div>
+              <div class="form-group">
+                  <label for="imageContainer">Image</label>
+                  <div>
+                    <button type="button" class="btn btn-success" id="addImageButton">Add Image</button>
+                  </div>
+                  <div id="imageContainer" class="mt-2">
+                    <!-- Dynamically added images will appear here -->
+                  </div>
+              </div>
+              <button type="submit" class="btn btn-success" id="submitbutton" style="float:right">Submit</button>
+              <button type="button" class="btn btn-secondary" id="cancelEdit" style="display: none;">Cancel</button>
+            </form>
+        </div>
+
+
+      </div>
+
+
+      <!-- Modal for cropping -->
+      <div class="modal fade" id="cropperModal" tabindex="-1" role="dialog" aria-labelledby="cropperModalLabel" aria-hidden="true">
+         <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+               <div class="modal-header">
+                  <h5 class="modal-title" id="cropperModalLabel">Crop Image</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                  </button>
+               </div>
+               <div class="modal-body">
+                  <div class="img-container">
+                     <img id="imageToCrop" src="" alt="Image to crop">
+                  </div>
+               </div>
+               <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                  <button type="button" class="btn btn-primary" id="cropAndSaveButton">Crop & Save</button>
+               </div>
+            </div>
+         </div>
+      </div>
+
+      
+      <!-- Zoom Modal -->
+      <div class="modal fade" id="zoomModal" tabindex="-1" role="dialog" aria-labelledby="zoomModalLabel" aria-hidden="true">
+         <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+               <div class="modal-header">
+                  <h5 class="modal-title" id="zoomModalLabel">Zoomed Image</h5>
+                  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                  <span aria-hidden="true">&times;</span>
+                  </button>
+               </div>
+               <div class="modal-body text-center">
+                  <img id="zoomedImage" src="" alt="Zoomed Image" style="max-width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 5px;">
+               </div>
+               <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+               </div>
+            </div>
+         </div>
+      </div>
+  <script>
+
+
+
+    let cropper;
+    let selectedFile; // Holds the current selected file for cropping
+    let cropWidth = 200; // Default width
+    let cropHeight = 200; // Default height
+    let isEditing = false;
+    const imageContainer = document.getElementById("imageContainer");
+    const imageToCrop = document.getElementById("imageToCrop");
+    const cropAndSaveButton = document.getElementById("cropAndSaveButton");
+    const addImageButton = document.getElementById("addImageButton");
+    const zoomedImage = document.getElementById("zoomedImage"); // For the zoom modal
+    const refreshButton = document.getElementById('submitbutton');
+
+
+    function CallZoomImage(imageUrl) {
+      zoomedImage.src = imageUrl; // Set the source of the zoomed image
+      $("#zoomModal").modal("show"); // Open the zoom modal
+    }
+
+
+    // Handle "Add Image" button
+    addImageButton.addEventListener("click", function() {
+      const imageInput = document.createElement("input");
+      imageInput.type = "file";
+      imageInput.accept = "image/*";
+      imageInput.style.display = "none";
+
+      // Append input to body and trigger click
+      document.body.appendChild(imageInput);
+      imageInput.click();
+
+      // Remove input after use
+      imageInput.addEventListener("change", function(event) {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+          selectedFile = files[0];
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            imageToCrop.src = e.target.result;
+
+            // Fetch dynamic settings and open the cropper modal
+
+            $("#cropperModal").modal("show");
+
+          };
+          reader.readAsDataURL(files[0]);
+        }
+        document.body.removeChild(imageInput); // Cleanup
+      });
+    });
+
+    // Initialize cropper when the modal is shown
+    $("#cropperModal").on("shown.bs.modal", function() {
+      cropper = new Cropper(imageToCrop, {
+        aspectRatio: cropWidth / cropHeight, // Use dynamic aspect ratio
+        viewMode: 1,
+      });
+    });
+
+    // Destroy cropper when the modal is hidden
+    $("#cropperModal").on("hidden.bs.modal", function() {
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+    });
+
+    // Handle cropping and add cropped image to container
+    cropAndSaveButton.addEventListener("click", function() {
+      if (cropper) {
+        const croppedCanvas = cropper.getCroppedCanvas({
+          width: cropWidth, // Use dynamic width
+          height: cropHeight, // Use dynamic height
+        });
+
+        const croppedImage = croppedCanvas.toDataURL("image/png");
+
+        // Create a container for the cropped image
+        const imageWrapper = document.createElement("div");
+        imageWrapper.className = "image-wrapper";
+        imageWrapper.style.position = "relative";
+        imageWrapper.style.display = "inline-block";
+        imageWrapper.style.margin = "10px";
+
+        // Add the cropped image
+        const imgElement = document.createElement("img");
+        imgElement.src = croppedImage;
+        imgElement.style.width = "100px";
+        imgElement.style.height = "100px";
+        imgElement.style.objectFit = "cover";
+        imgElement.style.cursor = "pointer"; // Add pointer cursor
+
+        // Add a delete button
+        const deleteButton = document.createElement("button");
+        deleteButton.textContent = "X";
+        deleteButton.className = "btn btn-danger btn-sm";
+        deleteButton.style.position = "absolute";
+        deleteButton.style.top = "5px";
+        deleteButton.style.right = "5px";
+        deleteButton.style.borderRadius = "50%";
+
+        // Delete image on button click
+        deleteButton.addEventListener("click", function() {
+          imageContainer.removeChild(imageWrapper);
+        });
+
+        // Add click event to open zoom modal
+        imgElement.addEventListener("click", function() {
+          zoomedImage.src = croppedImage; // Set the source of the zoomed image
+          $("#zoomModal").modal("show"); // Open the zoom modal
+        });
+
+        // Append elements to the wrapper
+        imageWrapper.appendChild(imgElement);
+        imageWrapper.appendChild(deleteButton);
+        imageContainer.appendChild(imageWrapper);
+
+        // Close the cropper modal
+        $("#cropperModal").modal("hide");
+      }
+    });
+
+
+   $('#consumerForm').submit(function(event) {
+    event.preventDefault();
+    refreshButton.innerHTML = 'Please Wait...';
+    refreshButton.disabled = true;
+    addImageButton.disabled = true;
+
+    const name = $('#name').val();
+    const mobileno = $('#mobileno').val();
+    const rowIndex = $('#rowIndex').val();
+    const currentDate = new Date().toISOString().split('T')[0];
+    console.log(rowIndex);
+
+    const base64DataArray = [];
+    $('#imageContainer img').each(function(index, img) {
+        const base64Data = img.src.split(',')[1]; // Extract Base64 data
+        const fileName = `${name}_${mobileno}_${currentDate}_image${index + 1}.jpg`;
+        base64DataArray.push({ base64Data, fileName });
+    });
+
+    // If no images are selected, submit the form immediately
+    if (base64DataArray.length === 0) {
+        submitFormWithoutImages(rowIndex);
+        return;
+    }
+
+    // Otherwise, upload images first
+    const images = [];
+    let uploadCount = 0;
+
+    base64DataArray.forEach(({ base64Data, fileName }) => {
+        google.script.run
+            .withSuccessHandler(function(imageUrl) {
+                images.push(imageUrl);
+                uploadCount++;
+
+                if (uploadCount === base64DataArray.length) {
+                    submitFormWithImages(rowIndex, images);
+                }
+            })
+            .uploadFile(base64Data, fileName);
+    });
+});
+
+function submitFormWithoutImages(rowIndex) {
+    const data = {
+        rowIndex: rowIndex,
+        name: $('#name').val(),
+        address: $('#address').val(),
+        mobileno: $('#mobileno').val(),
+        email: $('#email').val(),
+        gender: $('#gender').val(),
+        age: $('#age').val(),
+        userid:localStorage.getItem("userid"),
+        images: [] // Empty array since no images were uploaded
+    };
+
+    google.script.run
+        .withSuccessHandler(submitsuccess)
+        .submitForm(data);
+}
+
+function submitFormWithImages(rowIndex, images) {
+    const data = {
+        rowIndex: rowIndex,
+        name: $('#name').val(),
+        address: $('#address').val(),
+        mobileno: $('#mobileno').val(),
+        email: $('#email').val(),
+        gender: $('#gender').val(),
+        age: $('#age').val(),
+        userid:localStorage.getItem("userid"),
+        images: images
+    };
+
+    google.script.run
+        .withSuccessHandler(submitsuccess)
+        .submitForm(data);
+}
+
+function submitsuccess(result) {
+	refreshButton.innerHTML = 'Submit';
+	refreshButton.disabled = false;
+	addImageButton.disabled = false;
+	if (result === 'inserted') {
+		toastr.success('Inserted Successfully.');
+		resetForm();
+	} else if (result === 'deleted') {
+		toastr.error('Deleted Successfully.');
+		resetForm();
+	} else if (result === 'updated') {
+		toastr.warning('Updated Successfully.');
+		resetForm();
+	} else {
+		toastr.error('An error occurred. Please try again.');
+	}
+	$("#customerupdate").modal("hide");
+}
+
+
+    function resetForm() {
+      isEditing = false;
+      $('#consumerForm')[0].reset();
+      $('#rowIndex').val('');
+      $('#imagePreview').empty();
+      croppedImageDataURL = null;
+      imageContainer.innerHTML = "";
+      $('#submitbutton').text('Submit');
+      $('#cancelEdit').hide();
+      $('#image').prop('required', true);
+    }
+
+    $('#cancelEdit').click(function() {
+      resetForm();
+    });
+    </script>
+
+<?!= include('footer'); ?>

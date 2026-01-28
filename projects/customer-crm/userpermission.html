@@ -1,0 +1,145 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+
+
+    <div class="container">
+
+        <div class="mb-3" style="padding-top:20px;">
+            <label for="userSelect" class="form-label">Select User:</label>
+            <select id="userSelect" class="form-select"></select>
+        </div>
+
+        <div class="mb-3">
+            <label for="userName" class="form-label">User Name:</label>
+            <input type="text" id="userName" class="form-control">
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">User Status:</label>
+            <div class="form-check form-switch">
+                <input type="checkbox" class="form-check-input" id="statusToggle">
+                <label class="form-check-label" for="statusToggle">Active</label>
+            </div>
+        </div>
+
+        <h5>Allowed Pages:</h5>
+        <div id="pagesList" class="mb-3"></div>
+
+        <button id="updateBtn" class="btn btn-primary">Update Permissions</button>
+    </div>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+      const userSelect = document.getElementById("userSelect");
+      const pagesList = document.getElementById("pagesList");
+      const updateBtn = document.getElementById("updateBtn");
+      const userNameField = document.getElementById("userName");
+      const statusToggle = document.getElementById("statusToggle");
+
+      let userPermissions = {};
+      let userStatus = {};
+      let userNames = {};
+      let allPages = [];
+
+      // Fetch menu items dynamically
+      function fetchMenuPages() {
+          const menuItems = document.querySelectorAll(".menu-item");
+          menuItems.forEach(item => {
+              const page = item.getAttribute("data-page");
+              if (page) allPages.push(page);
+          });
+      }
+
+      fetchMenuPages();
+
+      // Fetch users from Google Sheets
+      function fetchUsers() {
+          google.script.run.withSuccessHandler((data) => {
+              userSelect.innerHTML = '<option value="">Select a user</option>';
+              data.forEach(user => {
+                  let option = document.createElement("option");
+                  option.value = user.email;
+                  option.textContent = user.email;
+                  userSelect.appendChild(option);
+
+                  // Store user details
+                  userPermissions[user.email] = user.allowedPages.split(",");
+                  userStatus[user.email] = user.status;
+                  userNames[user.email] = user.name;
+              });
+          }).getUsers();
+      }
+
+      // Display user permissions when selected
+      userSelect.addEventListener("change", function () {
+          pagesList.innerHTML = "";
+          const selectedUser = userSelect.value;
+
+          if (!selectedUser) return;
+
+          userNameField.value = userNames[selectedUser];
+          statusToggle.checked = userStatus[selectedUser] === "active";
+
+          allPages.forEach((page) => {
+              let checkbox = document.createElement("input");
+              checkbox.type = "checkbox";
+              checkbox.value = page;
+              checkbox.className = "form-check-input";
+              checkbox.id = `chk-${page}`;
+
+              let label = document.createElement("label");
+              label.className = "form-check-label";
+              label.htmlFor = `chk-${page}`;
+              label.textContent = page.charAt(0).toUpperCase() + page.slice(1);
+
+              let div = document.createElement("div");
+              div.className = "form-check";
+              div.appendChild(checkbox);
+              div.appendChild(label);
+
+              // Check if the user has access
+              if (userPermissions[selectedUser].includes(page)) {
+                  checkbox.checked = true;
+              }
+
+              pagesList.appendChild(div);
+          });
+      });
+
+      // Update Permissions and User Status in Google Sheets
+      updateBtn.addEventListener("click", function () {
+          updateBtn.innerHTML = 'Please Wait..';
+          updateBtn.disabled = true;
+          const selectedUser = userSelect.value;
+          if (!selectedUser) {
+              toastr.error("Please select a user!");
+              updateBtn.innerHTML = 'Update Permission';
+              updateBtn.disabled = false;
+              return;
+          }
+
+          // Collect checked pages
+          let updatedPages = [];
+          document.querySelectorAll("#pagesList input:checked").forEach(input => {
+              updatedPages.push(input.value);
+          });
+
+          // Get name and status
+          let updatedName = userNameField.value;
+          let updatedStatus = statusToggle.checked ? "active" : "inactive";
+
+          // Send data to Google Apps Script
+          google.script.run.withSuccessHandler((response) => {
+              updateBtn.innerHTML = 'Update Permission';
+              updateBtn.disabled = false;
+              toastr.success(response.message);
+          }).updateUserDetails(selectedUser, updatedPages.join(","), updatedName, updatedStatus);
+      });
+
+      // Load Users on Page Load
+      fetchUsers();
+  });
+</script>
+
+<?!= include('footer'); ?>

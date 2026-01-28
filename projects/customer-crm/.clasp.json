@@ -1,0 +1,24 @@
+{
+  "scriptId": "1BiPuzRUMwPY-0vZzmu29-ajFZLT-ghNQfbGWsp3eDN6P-okWz23WZkeP",
+  "rootDir": "",
+  "parentId": "1OEge0Amm2LPNijvcq-g-v5OCt1kfV0pQSHVP_yMJnNg",
+  "scriptExtensions": [".js", ".gs"],
+  "htmlExtensions": [".html"],
+  "jsonExtensions": [".json"],
+  "filePushOrder": [
+    "Maincode.js",
+    "Customer.js",
+    "appsscript.json",
+    "login.html",
+    "dashboard.html",
+    "userdashboard.html",
+    "userpermission.html",
+    "changepassword.html",
+    "consumerentry.html",
+    "consumerlist.html",
+    "consumerfollowup.html",
+    "header.html",
+    "footer.html"
+  ],
+  "skipSubdirectories": false
+}

@@ -1,0 +1,472 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<style>
+#imagePreview {
+	width: 100%;
+	max-width: 80px;
+	height: auto;
+	overflow: hidden;
+}
+
+#imagePreview img {
+	width: 100%;
+}
+
+.modal-lg-custom {
+	max-width: 90% !important;
+}
+
+.img-container {
+	max-width: 100%;
+	max-height: 400px;
+	overflow: hidden;
+}
+
+.img-container img {
+	max-width: 100%;
+}
+
+.consumer-image {
+	width: 80px;
+	height: 80px;
+	object-fit: cover;
+}
+
+.edit-btn {
+	margin-right: 5px;
+}
+
+.container {
+	display: flex;
+	flex-wrap: wrap;
+	background: #ffffff;
+	margin-top: 15px;
+	border-radius: 10px;
+}
+
+#form-container {
+	flex: 1;
+	min-width: 300px;
+	max-width: 90%;
+	margin-right: 10px;
+}
+
+#records-container {
+	flex: 1;
+	min-width: 300px;
+	overflow-y: auto;
+	height: calc(100vh - 100px);
+	padding-left: 17px;
+}
+
+.table-responsive {
+	overflow-y: auto;
+}
+
+.form-group {
+	display: flex;
+	align-items: center;
+	margin-top: 17px;
+}
+
+.form-group label {
+	flex: 0 0 150px;
+	margin-bottom: 0;
+}
+
+.form-group input,
+.form-group select {
+	flex: 1;
+}
+
+/* Styling the scrollbar */
+#records-container::-webkit-scrollbar {
+	width: 8px;
+	/* Width of the scrollbar */
+}
+
+#records-container::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	/* Track background color */
+	border-radius: 4px;
+}
+
+#records-container::-webkit-scrollbar-thumb {
+	background: #888;
+	/* Thumb color */
+	border-radius: 4px;
+	/* Rounded corners */
+}
+
+#records-container::-webkit-scrollbar-thumb:hover {
+	background: #555;
+	/* Thumb color on hover */
+}
+
+/* Optional: Add support for Firefox */
+#records-container {
+	scrollbar-width: thin;
+	/* Width for Firefox */
+	scrollbar-color: #888 #f1f1f1;
+	/* Thumb and track colors */
+	margin-top: 30px;
+}
+
+#imagePreview {
+	width: 100%;
+	max-width: 80px;
+	height: auto;
+	overflow: hidden;
+}
+
+#imagePreview img {
+	width: 100%;
+}
+
+.modal-lg-custom {
+	max-width: 90% !important;
+}
+
+.img-container {
+	max-width: 100%;
+	max-height: 400px;
+	overflow: hidden;
+}
+
+.img-container img {
+	max-width: 100%;
+}
+
+.image-wrapper {
+	position: relative;
+	display: inline-block;
+	margin: 10px;
+}
+
+.image-wrapper img {
+	width: 100px;
+	height: 100px;
+	object-fit: cover;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+}
+
+.image-wrapper button {
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	border: none;
+	background: red;
+	color: white;
+	width: 20px;
+	height: 20px;
+	text-align: center;
+	font-size: 14px;
+	line-height: 18px;
+	cursor: pointer;
+	border-radius: 50%;
+}
+
+#zoomedImage {
+	max-width: 100%;
+	max-height: 80vh;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+}
+
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+.modal-body .follow-up-entry {
+	padding: 15px;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+	background-color: #f9f9f9;
+	margin-bottom: 10px;
+}
+
+#followUpsList {
+	margin-top: 16px;
+	font-size: 13px;
+}
+
+#followUpsList .p-3 {
+	padding-bottom: 0px !important;
+	margin-bottom: 3px;
+}
+
+#followUpsList .p-3 p {
+	padding-bottom: 0px !important;
+	margin-bottom: 3px;
+}
+
+#consumerTableBody {
+	font-size: 14px;
+}
+</style>
+<div class="container" style="max-width:95%;">
+	<div id="records-container">
+		<div class="table-responsive">
+			<table id="consumerTable" class="table table-striped table-bordered">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Address</th>
+						<th>Mobile No</th>
+						<th>Email</th>
+						<th>Age</th>
+						<th>Gender</th>
+						<th>Images</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody id="consumerTableBody">
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+<!-- Follow-ups Modal -->
+<div class="modal fade" id="followUpsModal" tabindex="-1" aria-labelledby="followUpsModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="followUpsModalLabel">Consumer Follow-ups</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<!-- Tabs for Phone Call and Email -->
+				<ul class="nav nav-tabs" id="followUpTabs" role="tablist">
+					<li class="nav-item" role="presentation">
+						<button class="nav-link active" id="phoneCallTab" data-bs-toggle="tab" data-bs-target="#phoneCallContent" type="button" role="tab" aria-controls="phoneCallContent" aria-selected="true">Phone Call</button>
+					</li>
+					<li class="nav-item" role="presentation">
+						<button class="nav-link" id="emailTab" data-bs-toggle="tab" data-bs-target="#emailContent" type="button" role="tab" aria-controls="emailContent" aria-selected="false">Email</button>
+					</li>
+				</ul>
+				<!-- Tab content -->
+				<div class="tab-content mt-3">
+					<!-- Phone Call Tab -->
+					<div class="tab-pane fade show active" id="phoneCallContent" role="tabpanel" aria-labelledby="phoneCallTab">
+						<div class="mb-3">
+							<div id="phoneCallMessageEditor" style="height: 200px; background: #fff; border: 1px solid #ddd; border-radius: 5px;"></div>
+						</div>
+						<div class="mb-3">
+							<label for="phoneCallResponse" class="form-label"><strong>Response:</strong></label>
+							<textarea id="phoneCallResponse" class="form-control" rows="2" placeholder="Enter the response here"></textarea>
+						</div>
+						<div class="text-end">
+							<button class="btn btn-success" id="savePhoneCallButton">Save Phone Call</button>
+						</div>
+					</div>
+					<!-- Email Tab -->
+					<div class="tab-pane fade" id="emailContent" role="tabpanel" aria-labelledby="emailTab">
+						<div class="mb-3">
+							<div id="emailMessageEditor" style="height: 200px; background: #fff; border: 1px solid #ddd; border-radius: 5px;"></div>
+						</div>
+						<div class="text-end">
+							<button class="btn btn-primary" id="saveEmailButton">Send Email</button>
+						</div>
+					</div>
+				</div>
+				<div id="followUpsList"></div>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- Zoom Modal -->
+<div class="modal fade" id="zoomModal" tabindex="-1" role="dialog" aria-labelledby="zoomModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="zoomModalLabel">Zoomed Image</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body text-center">
+				<img id="zoomedImage" src="" alt="Zoomed Image" style="max-width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 5px;">
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+  // Initialize the editors for Phone Call and Email
+  const phoneCallEditor = new Quill('#phoneCallMessageEditor', {
+    theme: 'snow'
+  });
+  const emailEditor = new Quill('#emailMessageEditor', {
+    theme: 'snow'
+  });
+document.addEventListener('DOMContentLoaded', function() {
+
+// Save Phone Call Button
+document.getElementById('savePhoneCallButton').addEventListener('click', function() {
+  const refreshButton = document.getElementById('savePhoneCallButton');
+  
+  refreshButton.innerHTML = 'Please Wait...';
+  refreshButton.disabled = true;
+
+  const messageContent = phoneCallEditor.root.innerHTML; // Get Phone Call message
+  const responseText = document.getElementById('phoneCallResponse').value; // Get response
+  const mobileNo = document.querySelector('#followUpsModal').getAttribute('data-mobileno'); // Mobile no from modal data
+  const email = document.querySelector('#followUpsModal').getAttribute('data-email');
+  
+  google.script.run.withSuccessHandler(function(response) {
+    toastr.success('Phone call details saved successfully!');
+    refreshButton.innerHTML = 'Save Call details';
+    refreshButton.disabled = false;
+    $("#followUpsModal").modal("hide");
+  }).withFailureHandler(function(error) {
+    toastr.error('Failed to save phone call details. Please try again.');
+    refreshButton.innerHTML = 'Save Call details';
+    refreshButton.disabled = false;
+  }).saveMessage(mobileNo, messageContent, 'phone call', responseText, localStorage.getItem('userid'), email); // Pass 'phone call' as the messagemode
+});
+
+// Send Email Button
+document.getElementById('saveEmailButton').addEventListener('click', function() {
+  const refreshButton = document.getElementById('saveEmailButton');
+
+  refreshButton.innerHTML = 'Please Wait...';
+  refreshButton.disabled = true;
+
+  const messageContent = emailEditor.root.innerHTML; // Get Email message
+  const email = document.querySelector('#followUpsModal').getAttribute('data-email'); // Email from modal data
+  const mobileNo = document.querySelector('#followUpsModal').getAttribute('data-mobileno'); // Mobile no from modal data
+  google.script.run.withSuccessHandler(function(response) {
+    toastr.success('Email sent successfully!');
+    refreshButton.innerHTML = 'Send Email';
+    refreshButton.disabled = false;
+    $("#followUpsModal").modal("hide");
+  }).withFailureHandler(function(error) {
+    toastr.error('Failed to send email. Please try again.');
+    refreshButton.innerHTML = 'Send Email';
+    refreshButton.disabled = false;
+  }).sendEmail(email, messageContent, 'email', localStorage.getItem('userid'), mobileNo); // Pass 'email' as the messagemode
+});
+
+
+
+	dataTable = $('#consumerTable').DataTable({
+		responsive: true,
+		order: []
+	});
+	// Load initial data
+	loadConsumerData();
+});
+
+function loadConsumerData() {
+	google.script.run.withSuccessHandler(function(data) {
+		dataTable.clear();
+		data.forEach(function(row, index) {
+			const imageSlideshow = row.imageUrls.map(
+				(url, i) => `<img src="${url}" onclick="CallZoomImage('${url}')" class="consumer-image slide-${index}" alt="Image ${i + 1}" 
+                style="width: 100px; height: 100px; object-fit: cover; display: ${i === 0 ? 'block' : 'none'};">`).join('');
+			const slideshowHtml = `
+          <div class="slideshow-container" style="position: relative; width: 100px; height: 100px;">
+            ${imageSlideshow}
+            <button class="prev-slide" style="position: absolute; top: 50%; left: 0; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; cursor: pointer;" 
+                    onclick="changeSlide(${index}, -1)">❮</button>
+            <button class="next-slide" style="position: absolute; top: 50%; right: 0; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; cursor: pointer;" 
+                    onclick="changeSlide(${index}, 1)">❯</button>
+          </div>
+        `;
+			dataTable.row.add([
+				row.name,
+				row.address,
+				row.mobileno,
+				row.email,
+				row.age,
+				row.gender,
+				slideshowHtml, `<div style="display: flex; gap: 10px;">
+                <button class="btn btn-info btn-sm" onclick="showFollowUps('${row.mobileno}', '${row.email}')">Follow-ups</button>
+              </div>`
+			]).draw(false);
+			// Automatically start the slideshow for each row
+			startSlideshow(index, row.imageUrls.length);
+		});
+	}).getConsumerData();
+}
+// Function to handle slide changes
+function changeSlide(slideshowIndex, direction) {
+	const slides = document.querySelectorAll(`.slide-${slideshowIndex}`);
+	let currentIndex = Array.from(slides).findIndex((slide) => slide.style.display === 'block');
+	slides[currentIndex].style.display = 'none';
+	currentIndex = (currentIndex + direction + slides.length) % slides.length; // Wrap around
+	slides[currentIndex].style.display = 'block';
+}
+// Function to start automatic slideshow
+function startSlideshow(slideshowIndex, totalSlides) {
+	let currentIndex = 0;
+	setInterval(() => {
+		const slides = document.querySelectorAll(`.slide-${slideshowIndex}`);
+		slides[currentIndex].style.display = 'none';
+		currentIndex = (currentIndex + 1) % totalSlides; // Move to the next slide
+		slides[currentIndex].style.display = 'block';
+	}, 3000); // Change image every 3 seconds (adjust as needed)
+}
+
+function CallZoomImage(imageUrl) {
+	zoomedImage.src = imageUrl; // Set the source of the zoomed image
+	$("#zoomModal").modal("show"); // Open the zoom modal
+}
+
+function showFollowUps(mobileno, email) {
+	const modal = document.getElementById('followUpsModal');
+	modal.setAttribute('data-mobileno', mobileno);
+	modal.setAttribute('data-email', email);
+  emailEditor.root.innerHTML = "";
+  phoneCallEditor.root.innerHTML = "";
+  document.getElementById('phoneCallResponse').value = "";
+	// Show modal
+	const followUpsModal = new bootstrap.Modal(modal);
+	followUpsModal.show();
+	// Clear follow-ups list initially
+	const followUpsList = document.getElementById('followUpsList');
+	followUpsList.innerHTML = '<p class="text-muted">Loading follow-ups...</p>';
+	// Fetch follow-ups data
+	google.script.run.withSuccessHandler(function(followUps) {
+		followUpsList.innerHTML = ''; // Clear placeholder
+		// Sort follow-ups by date and time in descending order
+		followUps.sort((a, b) => {
+			const dateA = new Date(`${a.date}`);
+			const dateB = new Date(`${b.date}`);
+			return dateB - dateA; // Most recent first
+		});
+		if(followUps.length > 0) {
+			followUps.forEach((followUp) => {
+				followUpsList.innerHTML += `
+                <div class="mb-3 p-3 border rounded bg-light">
+                  <p><strong>Date:</strong> ${followUp.date || 'N/A'} <strong>User:</strong> ${followUp.user || 'N/A'}, Mode: ${followUp.messagemode || 'N/A'}</p>
+                  <p><strong>Message:</strong> ${followUp.message}</p>
+                  <p><strong>Response:</strong> ${followUp.response}</p>
+                </div>
+              `;
+			});
+		} else {
+			followUpsList.innerHTML = '<p class="text-muted">No follow-ups found for this consumer.</p>';
+		}
+	}).getFollowUps(mobileno, email);
+}
+</script>
+<?!= include('footer'); ?>

@@ -1,0 +1,81 @@
+     </div>
+  </section>
+  
+ </div>
+   <div id="loginpagebutton" style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; margin-top: 57px; display: none;">
+    <button type="button" class="btn btn-primary" onclick="logout()">Go to Login Page</button>
+  </div>
+  <script>
+
+    document.addEventListener("DOMContentLoaded", function () {
+      var userRole = localStorage.getItem("userRole");
+      var deployLink = document.getElementById("urllink").value;
+      var userPages = JSON.parse(localStorage.getItem("userPages") || "[]");
+      var currentPage = document.getElementById("currentpage").value;
+      document.getElementById("profile_name").innerHTML=localStorage.getItem("username")
+      
+
+      if (!userRole) {
+          toastr.error("Unauthorized Access! Redirecting to Login...");
+          window.location.replace(deployLink + "?page=login");
+          return;
+      }
+
+      // If the current page is not in userPages, redirect to Dashboard
+      if (!userPages.includes(currentPage)) {
+           toastr.error("Access Denied! Redirecting to Dashboard...");
+          window.location.replace(deployLink + "?page=dashboard");
+          return;
+      }
+
+      // Show main content if access is granted
+      document.getElementById("maincontent").style.display = "block";
+      document.getElementById("menuheader").innerHTML = sessionStorage.getItem('menuheader');
+
+      // Hide menu items that are not allowed for the user
+      document.querySelectorAll(".menu-item").forEach(function (item) {
+          if (!userPages.includes(item.dataset.page)) {
+              item.style.display = "none";
+          }
+      });
+    });
+
+
+
+
+  let sidebar = document.querySelector(".sidebar");
+  let sidebarBtn = document.querySelector(".bx-menu");
+
+  sidebarBtn.addEventListener("click", ()=>{
+    sidebar.classList.toggle("close");
+  });
+
+
+
+    function logout() {
+      localStorage.clear();
+      redirectpage('login');
+    }
+
+function navigateToPage(page, headerText) {
+    sessionStorage.setItem('menuheader', headerText);
+
+    var googleappscript = document.getElementById("urllink").value;
+    var myAnchor = document.getElementById('pageURL');
+    myAnchor.href = googleappscript + '?page=' + page; // Assigning the URL to the href attribute
+    myAnchor.click();
+    document.getElementById("pageURL").click();
+}
+
+
+    function redirectpage(page){
+        var googleappscript = document.getElementById("urllink").value;
+        var myAnchor = document.getElementById('pageURL');
+        myAnchor.href = googleappscript + '?page='+page;
+        myAnchor.click();
+        document.getElementById("pageURL").click();
+    }
+  </script>
+
+</body>
+</html>
