@@ -11,6 +11,7 @@
  *   - KINGSHOT_VALIDATE_FID  : 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저로 검증)
  *   - DISCORD_WEBHOOK_URL    : 등록/배치 결과를 보낼 Discord Incoming Webhook URL
  *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 100, 0 이면 무제한)
+ *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 7, 0 이면 끔)
  */
 
 // 운영사가 salt 를 교체하면 여기 또는 Script Property(KINGSHOT_SALT)만 수정하면 됩니다.
@@ -28,6 +29,10 @@ function getConfig() {
   // 유저 정원 (기본 100, 0 이면 무제한)
   const maxUsersProp = parseInt(props.getProperty('KINGSHOT_MAX_USERS'), 10);
   const maxUsers = isNaN(maxUsersProp) ? 100 : maxUsersProp;
+
+  // 쿠폰 자동 만료 일수 (기본 7, 0 이면 끔)
+  const ttlProp = parseInt(props.getProperty('KINGSHOT_COUPON_TTL_DAYS'), 10);
+  const couponTtlDays = isNaN(ttlProp) ? 7 : ttlProp;
 
   return {
     salt,
@@ -61,10 +66,15 @@ function getConfig() {
     // 유저 등록 정원 (0 = 무제한)
     maxUsers,
 
+    // 쿠폰 자동 만료 일수 (0 = 끔)
+    couponTtlDays,
+
     // 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저 사용)
     validateFid: props.getProperty('KINGSHOT_VALIDATE_FID') || '',
 
     // Discord 알림용 Incoming Webhook URL
     discordWebhookUrl: props.getProperty('DISCORD_WEBHOOK_URL') || '',
+    // 알림 on/off (기본 ON, 'false' 일 때만 끔)
+    discordEnabled: props.getProperty('DISCORD_ENABLED') !== 'false',
   };
 }

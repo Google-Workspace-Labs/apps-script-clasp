@@ -1,11 +1,11 @@
-/* global getConfig, loginPlayer, redeemCouponWithRetry, notifyDiscord_, requestBatch_ */
+/* global getConfig, loginPlayer, redeemCouponWithRetry, notifyDiscordEmbed_, requestBatch_ */
 
 /**
  * Kingshot Coupon - 엔트리 / 메뉴 / 배치 / 시트 I/O
  *
  * 시트 구조:
- *   users   : fid | nickname | active
- *   coupons : code | enabled | status   (status 는 배치가 자동 관리: EXPIRED/INVALID 등)
+ *   users   : fid | nickname | active | created | updated
+ *   coupons : code | enabled | status | created | updated   (status: EXPIRED/INVALID_CODE/EXPIRED_AGE 등)
  *   logs    : time | fid | code | result | message
  *
  * 쿠폰 만료 처리: 배치 중 EXPIRED(기간만료) 또는 INVALID_CODE(코드없음) 응답을 받으면
@@ -22,6 +22,9 @@ function onOpen() {
     .createMenu('Kingshot Bot')
     .addItem('Run Coupon Batch', 'runCouponBatch')
     .addItem('Test Single Coupon', 'testSingleCoupon')
+    .addSeparator()
+    .addItem('Deactivate User', 'deactivateUser')
+    .addItem('Delete User', 'deleteUser')
     .addSeparator()
     .addItem('Setup Sheets', 'setupSheets')
     .addItem('Clean Expired Logs', 'cleanExpiredLogs')
@@ -57,11 +60,34 @@ function runCouponBatch_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const startTime = Date.now();
+  formatLogsTimeColumn_(); // 기존 logs time 도 24시간 형식으로 정리
 
   const allUsers = readUsers_();
   const allCoupons = readCoupons_();
   const users = allUsers.filter((u) => u.active);
-  const coupons = allCoupons.filter((c) => c.enabled);
+
+  // 쿠폰 나이 기반 자동 만료(TTL): created + TTL일 < now 인 enabled 쿠폰은 API 호출 전에 비활성화
+  const ttlDays = config.couponTtlDays;
+  const nowMs = Date.now();
+  const coupons = [];
+  let agedOut = 0;
+  for (const c of allCoupons) {
+    if (!c.enabled) {
+      continue;
+    }
+    if (
+      ttlDays > 0 &&
+      c.created instanceof Date &&
+      nowMs - c.created.getTime() > ttlDays * 86400000
+    ) {
+      disableCoupon_(c.row, 'EXPIRED_AGE');
+      purgeLogsForCode_(c.code);
+      agedOut++;
+      console.warn(`[EXPIRED_AGE] code=${c.code} (등록 ${ttlDays}일 초과 → 자동 비활성화)`);
+    } else {
+      coupons.push(c);
+    }
+  }
 
   if (users.length === 0 || coupons.length === 0) {
     // 어느 쪽이 비었는지 정확히 알려준다(전체 vs 필터 통과 수).
@@ -87,7 +113,7 @@ function runCouponBatch_() {
 
   const processed = getProcessedSet_();
   const deadCoupons = new Set(); // 이번 실행에서 만료/무효로 판정된 쿠폰 → 이후 요청 생략
-  const stats = { success: 0, already: 0, disabled: 0, fail: 0, skip: 0 };
+  const stats = { success: 0, already: 0, disabled: agedOut, fail: 0, skip: 0, warn: 0 };
   let stoppedByTime = false;
 
   for (const user of users) {
@@ -103,6 +129,9 @@ function runCouponBatch_() {
           }
           appendLog_(user.fid, coupon.code, result, login.message);
           stats.fail++;
+        }
+        if (login.rateLimited) {
+          stats.warn++; // 봇/IP 이상 신호
         }
         console.warn(`[${result}] fid=${user.fid} (${login.message})`);
         Utilities.sleep(login.rateLimited ? config.rateLimitCooldownMs : config.requestDelayMs);
@@ -151,6 +180,13 @@ function runCouponBatch_() {
         );
       } else {
         stats.fail++;
+        if (
+          result.result === 'RATE_LIMITED' ||
+          result.result === 'CAPTCHA_REQUIRED' ||
+          result.result === 'ERROR'
+        ) {
+          stats.warn++; // 봇/IP 이상 신호 (만료·잘못된ID 등 데이터 문제와 구분)
+        }
         console.warn(
           `[FAILED] fid=${user.fid} code=${coupon.code} → ${result.result}: ${result.message}`,
         );
@@ -175,18 +211,27 @@ function runCouponBatch_() {
   ss.toast(summary, 'Kingshot Bot 완료', 12);
   console.log(`[BATCH DONE] ${summary}`);
 
-  // Discord 상세 알림 (webhook 설정 시)
-  notifyDiscord_(
-    `**Kingshot 배치 완료**\n` +
-      `• 성공: ${stats.success}\n` +
-      `• 이미받음: ${stats.already}\n` +
-      `• 만료·무효(자동비활성): ${stats.disabled}\n` +
-      `• 실패: ${stats.fail}\n` +
-      `• 스킵(중복): ${stats.skip}\n` +
-      `• 대상: ${users.length}명 × ${coupons.length}쿠폰\n` +
-      `• 소요: ${elapsedSec}s (건당 ~${avg}s)` +
-      (stoppedByTime ? `\n• ⏱️ 시간초과 중단 — 다시 실행하면 이어서 진행` : ''),
-  );
+  // Discord 임베드 알림 — 경고(rate limit/오류) 있으면 빨강, 실패만 있으면 주황, 정상이면 초록
+  const batchEmbed = {
+    title: '🎁 Kingshot 배치 완료',
+    color: stats.warn > 0 ? 15158332 : stats.fail > 0 ? 15105570 : 3066993,
+    fields: [
+      { name: '✅ 성공', value: `${stats.success}`, inline: true },
+      { name: '🔁 이미받음', value: `${stats.already}`, inline: true },
+      { name: '🗑️ 만료·무효', value: `${stats.disabled}`, inline: true },
+      { name: '❌ 실패', value: `${stats.fail}`, inline: true },
+      { name: '⏭️ 스킵', value: `${stats.skip}`, inline: true },
+      { name: '🎯 대상', value: `${users.length}명 × ${coupons.length}쿠폰`, inline: true },
+    ],
+    footer: {
+      text: `소요 ${elapsedSec}s (건당 ~${avg}s)` + (stoppedByTime ? ' · ⏱️ 시간초과 중단' : ''),
+    },
+    timestamp: new Date().toISOString(),
+  };
+  if (stats.warn > 0) {
+    batchEmbed.description = `🚨 rate limit/오류 ${stats.warn}건 감지 — 봇·IP 상태 점검 필요`;
+  }
+  notifyDiscordEmbed_(batchEmbed);
 }
 
 // ============================================================
@@ -248,8 +293,11 @@ function setupSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const defs = [
-    { name: config.sheets.users, headers: ['fid', 'nickname', 'active'] },
-    { name: config.sheets.coupons, headers: ['code', 'enabled', 'status'] },
+    { name: config.sheets.users, headers: ['fid', 'nickname', 'active', 'created', 'updated'] },
+    {
+      name: config.sheets.coupons,
+      headers: ['code', 'enabled', 'status', 'created', 'updated'],
+    },
     { name: config.sheets.logs, headers: ['time', 'fid', 'code', 'result', 'message'] },
   ];
 
@@ -324,7 +372,12 @@ function readUsers_() {
     .getValues()
     .slice(1) // 헤더 제외
     .filter((r) => r[0] !== '' && r[0] !== null)
-    .map((r) => ({ fid: String(r[0]).trim(), nickname: r[1], active: isTrue_(r[2]) }));
+    .map((r) => ({
+      fid: String(r[0]).trim(),
+      nickname: r[1],
+      active: isTrue_(r[2]),
+      created: r[3] instanceof Date ? r[3] : null,
+    }));
 }
 
 /** coupons 시트 → [{code, enabled, status, row}] (row 는 write-back 용 1-based 시트 행번호) */
@@ -349,13 +402,14 @@ function readCoupons_() {
       code: String(code).trim(),
       enabled: isTrue_(values[i][1]),
       status: values[i][2] ? String(values[i][2]).trim() : '',
+      created: values[i][3] instanceof Date ? values[i][3] : null, // TTL 계산용
       row: i + 1, // values 인덱스 i → 시트 행번호 i+1 (1-based)
     });
   }
   return out;
 }
 
-/** 만료/무효 쿠폰을 영구 비활성화: enabled(B열)=FALSE, status(C열)=사유 */
+/** 만료/무효 쿠폰을 영구 비활성화: enabled(B)=FALSE, status(C)=사유, updated(E)=now */
 function disableCoupon_(couponRow, statusText) {
   const config = getConfig();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.coupons);
@@ -363,7 +417,8 @@ function disableCoupon_(couponRow, statusText) {
     return;
   }
   sheet.getRange(couponRow, 2).setValue(false); // enabled = FALSE
-  sheet.getRange(couponRow, 3).setValue(statusText); // status = EXPIRED / INVALID_CODE
+  sheet.getRange(couponRow, 3).setValue(statusText); // status = EXPIRED / INVALID_CODE / EXPIRED_AGE
+  stampDate_(sheet, couponRow, 5, new Date()); // updated
 }
 
 /**
@@ -435,6 +490,20 @@ function appendLog_(fid, code, result, message) {
     throw new Error(`'${config.sheets.logs}' 시트가 없습니다. 먼저 [Setup Sheets] 를 실행하세요.`);
   }
   sheet.appendRow([new Date(), fid, code, result, message]);
+  sheet.getRange(sheet.getLastRow(), 1).setNumberFormat(DATE_NUMBER_FORMAT); // time 24h
+}
+
+/** logs 시트의 time(A) 컬럼 전체를 24시간 형식으로 (기존 행 포함) */
+function formatLogsTimeColumn_() {
+  const config = getConfig();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.logs);
+  if (!sheet) {
+    return;
+  }
+  const last = sheet.getLastRow();
+  if (last >= 2) {
+    sheet.getRange(2, 1, last - 1, 1).setNumberFormat(DATE_NUMBER_FORMAT);
+  }
 }
 
 /** TRUE / true / 불리언 true 를 모두 참으로 인식 */
@@ -447,7 +516,59 @@ function isTrue_(value) {
 }
 
 // ============================================================
-// 등록 헬퍼 (Slack 웹앱에서 사용)
+// 유저 관리 (메뉴: 비활성화 / 삭제) — 시트 편집권한자(관리자)만 메뉴 사용 가능
+// ============================================================
+
+/** fid 를 입력받아 active=FALSE 로 (배치에서 제외, 행은 유지) */
+function deactivateUser() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt('유저 비활성화', '비활성화할 fid 를 입력하세요:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+  const fid = res.getResponseText().trim();
+  const user = findUser_(fid);
+  if (!user) {
+    ui.alert(`fid ${fid} 를 users 시트에서 찾을 수 없습니다.`);
+    return;
+  }
+  const config = getConfig();
+  SpreadsheetApp.getActiveSpreadsheet()
+    .getSheetByName(config.sheets.users)
+    .getRange(user.row, 3) // active = C열
+    .setValue(false);
+  ui.alert(`✅ 비활성화: ${user.nickname || '(닉네임 없음)'} (fid ${fid}) — 배치에서 제외됩니다.`);
+}
+
+/** fid 를 입력받아 users 행을 삭제 (확인 후) */
+function deleteUser() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt('유저 삭제', '삭제할 fid 를 입력하세요:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+  const fid = res.getResponseText().trim();
+  const user = findUser_(fid);
+  if (!user) {
+    ui.alert(`fid ${fid} 를 users 시트에서 찾을 수 없습니다.`);
+    return;
+  }
+  // 시트 메뉴는 편집권한자(관리자)만 쓰므로 비밀번호 없이 확인만
+  const confirm = ui.alert(
+    '삭제 확인',
+    `${user.nickname || '(닉네임 없음)'} (fid ${fid}) 행을 삭제할까요?`,
+    ui.ButtonSet.YES_NO,
+  );
+  if (confirm !== ui.Button.YES) {
+    return;
+  }
+  const config = getConfig();
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.users).deleteRow(user.row);
+  ui.alert(`🗑️ 삭제 완료: ${user.nickname || '(닉네임 없음)'} (fid ${fid})`);
+}
+
+// ============================================================
+// 등록 헬퍼 (웹앱 등록에서 사용)
 // ============================================================
 
 /** users 시트에서 fid 검색 → {nickname, row} 또는 null */
@@ -461,20 +582,38 @@ function findUser_(fid) {
   const target = String(fid).trim();
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]).trim() === target) {
-      return { nickname: values[i][1], row: i + 1 };
+      return { nickname: values[i][1], row: i + 1, active: isTrue_(values[i][2]) };
     }
   }
   return null;
 }
 
-/** users 시트에 추가: [fid, nickname, TRUE] */
+// created/updated 셀 표시 형식 (24시간, 오전/오후 없이)
+const DATE_NUMBER_FORMAT = 'yyyy-mm-dd hh:mm:ss';
+
+/** 날짜 값을 셀에 쓰고 표시 형식을 24시간으로 지정 */
+function stampDate_(sheet, row, col, value) {
+  sheet.getRange(row, col).setValue(value).setNumberFormat(DATE_NUMBER_FORMAT);
+}
+
+/** created/updated 컬럼(D:E) 전체를 24시간 형식으로 맞춤 (기존 행 포함, self-healing) */
+function formatDateColumns_(sheet) {
+  const last = sheet.getLastRow();
+  if (last >= 2) {
+    sheet.getRange(2, 4, last - 1, 2).setNumberFormat(DATE_NUMBER_FORMAT);
+  }
+}
+
+/** users 시트에 추가: [fid, nickname, TRUE, created, updated] (등록 시 active 자동 TRUE) */
 function addUserToSheet_(fid, nickname) {
   const config = getConfig();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.users);
   if (!sheet) {
     throw new Error(`'${config.sheets.users}' 시트가 없습니다. 먼저 [Setup Sheets] 를 실행하세요.`);
   }
-  sheet.appendRow([String(fid).trim(), nickname || '', true]);
+  const now = new Date();
+  sheet.appendRow([String(fid).trim(), nickname || '', true, now, now]);
+  formatDateColumns_(sheet);
 }
 
 /** 현재 등록된 유저 수(데이터 행) */
@@ -482,7 +621,7 @@ function countUsers_() {
   return readUsers_().length;
 }
 
-/** coupons 시트에서 code 검색 → {row} 또는 null */
+/** coupons 시트에서 code 검색 → {row, enabled, status} 또는 null */
 function findCoupon_(code) {
   const config = getConfig();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.coupons);
@@ -493,13 +632,17 @@ function findCoupon_(code) {
   const target = String(code).trim();
   for (let i = 1; i < values.length; i++) {
     if (String(values[i][0]).trim() === target) {
-      return { row: i + 1 };
+      return {
+        row: i + 1,
+        enabled: isTrue_(values[i][1]),
+        status: values[i][2] ? String(values[i][2]).trim() : '',
+      };
     }
   }
   return null;
 }
 
-/** coupons 시트에 추가: [code, TRUE, status] */
+/** coupons 시트에 추가: [code, TRUE, status, created, updated] */
 function addCouponToSheet_(code, status) {
   const config = getConfig();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.coupons);
@@ -508,7 +651,9 @@ function addCouponToSheet_(code, status) {
       `'${config.sheets.coupons}' 시트가 없습니다. 먼저 [Setup Sheets] 를 실행하세요.`,
     );
   }
-  sheet.appendRow([String(code).trim(), true, status || '']);
+  const now = new Date();
+  sheet.appendRow([String(code).trim(), true, status || '', now, now]);
+  formatDateColumns_(sheet);
 }
 
 /** 현재 등록된 쿠폰 수(데이터 행) */
