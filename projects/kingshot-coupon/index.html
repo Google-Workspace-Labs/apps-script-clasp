@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <base target="_top" />
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        --bg: #0f1220;
+        --card: #1b1f33;
+        --accent: #5865f2;
+        --ok: #2ecc71;
+        --err: #e74c3c;
+        --muted: #9aa0b5;
+        --text: #eef0f6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', sans-serif;
+        padding: 16px;
+      }
+      .wrap {
+        max-width: 460px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 20px;
+        text-align: center;
+        margin: 8px 0 16px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 14px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+      }
+      .card h2 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      input[type='text'] {
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid #2c3150;
+        background: #11142440;
+        color: var(--text);
+        font-size: 16px;
+      }
+      button {
+        width: 100%;
+        margin-top: 12px;
+        padding: 12px;
+        border: 0;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .result {
+        margin-top: 12px;
+        font-size: 14px;
+        white-space: pre-wrap;
+        line-height: 1.45;
+        min-height: 18px;
+      }
+      .result.ok {
+        color: var(--ok);
+      }
+      .result.err {
+        color: var(--err);
+      }
+      .result.busy {
+        color: var(--muted);
+      }
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Kingshot 등록</h1>
+
+      <div class="card">
+        <h2>👤 유저 등록</h2>
+        <label for="fid">플레이어 ID (fid)</label>
+        <input id="fid" type="text" inputmode="numeric" placeholder="예: 42668855" autocomplete="off" />
+        <button id="userBtn" onclick="submitUser()">등록</button>
+        <div id="userResult" class="result"></div>
+        <div class="note">fid 만 입력하면 닉네임은 게임에서 자동 조회됩니다. 중복은 자동으로 걸러집니다.</div>
+      </div>
+
+      <div class="card">
+        <h2>🎁 쿠폰 등록</h2>
+        <label for="code">쿠폰 코드</label>
+        <input id="code" type="text" placeholder="예: KS0527" autocomplete="off" />
+        <button id="codeBtn" onclick="submitCoupon()">등록</button>
+        <div id="codeResult" class="result"></div>
+        <div class="note">
+          존재하지 않거나 만료된 코드는 자동 거부됩니다. 신규 유효 코드는 등록 후 잠시 뒤 배치가
+          백그라운드로 실행되며, <b>배치 결과는 Discord 로 전달</b>됩니다.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function setBusy(btnId, resId, busy, msg) {
+        document.getElementById(btnId).disabled = busy;
+        const el = document.getElementById(resId);
+        el.className = 'result' + (busy ? ' busy' : '');
+        if (msg !== undefined) {
+          el.textContent = msg;
+        }
+      }
+
+      function render(resId, res) {
+        const el = document.getElementById(resId);
+        el.className = 'result ' + (res && res.ok ? 'ok' : 'err');
+        el.textContent = res && res.message ? res.message : '알 수 없는 응답';
+      }
+
+      function submitUser() {
+        const fid = document.getElementById('fid').value.trim();
+        if (!fid) {
+          setBusy('userBtn', 'userResult', false, '❌ fid 를 입력하세요.');
+          return;
+        }
+        setBusy('userBtn', 'userResult', true, '⏳ 확인 중...');
+        google.script.run
+          .withSuccessHandler(function (res) {
+            setBusy('userBtn', 'userResult', false);
+            render('userResult', res);
+            if (res && res.ok) {
+              document.getElementById('fid').value = '';
+            }
+          })
+          .withFailureHandler(function (err) {
+            setBusy('userBtn', 'userResult', false);
+            render('userResult', { ok: false, message: '⚠️ 오류: ' + err.message });
+          })
+          .apiRegisterUser(fid);
+      }
+
+      function submitCoupon() {
+        const code = document.getElementById('code').value.trim();
+        if (!code) {
+          setBusy('codeBtn', 'codeResult', false, '❌ 쿠폰 코드를 입력하세요.');
+          return;
+        }
+        setBusy('codeBtn', 'codeResult', true, '⏳ 코드 확인 중...');
+        google.script.run
+          .withSuccessHandler(function (res) {
+            setBusy('codeBtn', 'codeResult', false);
+            render('codeResult', res);
+            if (res && res.ok) {
+              document.getElementById('code').value = '';
+            }
+          })
+          .withFailureHandler(function (err) {
+            setBusy('codeBtn', 'codeResult', false);
+            render('codeResult', { ok: false, message: '⚠️ 오류: ' + err.message });
+          })
+          .apiRegisterCoupon(code);
+      }
+    </script>
+  </body>
+</html>
