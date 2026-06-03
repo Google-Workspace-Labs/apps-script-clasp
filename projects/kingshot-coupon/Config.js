@@ -9,7 +9,9 @@
  *   - KINGSHOT_BASE_URL  : API 베이스 URL (기본값 사용 시 생략 가능)
  *   - KINGSHOT_VERIFY_PLAYER : 'false' 로 설정하면 fid 사전 로그인 검증 생략
  *   - KINGSHOT_VALIDATE_FID  : 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저로 검증)
- *   - DISCORD_WEBHOOK_URL    : 등록/배치 결과를 보낼 Discord Incoming Webhook URL
+ *   - SLACK_WEBHOOK_URL      : 등록/배치 결과를 보낼 Slack Incoming Webhook URL
+ *   - NOTIFY_BATCH/SCHEDULE/USER/COUPON/SETTINGS : 카테고리별 알림 ON/OFF
+ *     ('false' 면 OFF, 그 외 ON. 5개 모두 기본 ON — opt-out 정책)
  *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 100, 0 이면 무제한)
  *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 7, 0 이면 끔)
  */
@@ -18,7 +20,17 @@
 const DEFAULT_SALT = 'mN4!pQs6JrYwV9';
 const DEFAULT_BASE_URL = 'https://kingshot-giftcode.centurygame.com';
 
+// 요청 단위 캐시: 한 실행 안에서 getConfig() 가 여러 번 호출돼도 PropertiesService 는 1회만 읽음.
+// GAS 는 entry point 마다 새 isolate → 요청 끝나면 자동 폐기. setProperty 하는 api 는 invalidateConfigCache_ 호출.
+let __configCache = null;
+function invalidateConfigCache_() {
+  __configCache = null;
+}
+
 function getConfig() {
+  if (__configCache) {
+    return __configCache;
+  }
   const props = PropertiesService.getScriptProperties();
 
   const salt = props.getProperty('KINGSHOT_SALT') || DEFAULT_SALT;
@@ -34,7 +46,7 @@ function getConfig() {
   const ttlProp = parseInt(props.getProperty('KINGSHOT_COUPON_TTL_DAYS'), 10);
   const couponTtlDays = isNaN(ttlProp) ? 7 : ttlProp;
 
-  return {
+  __configCache = {
     salt,
     baseUrl,
     playerUrl: `${baseUrl}/api/player`,
@@ -49,6 +61,7 @@ function getConfig() {
       users: 'users',
       coupons: 'coupons',
       logs: 'logs',
+      systemLogs: 'system_logs',
     },
 
     // Rate limit 대응
@@ -72,9 +85,19 @@ function getConfig() {
     // 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저 사용)
     validateFid: props.getProperty('KINGSHOT_VALIDATE_FID') || '',
 
-    // Discord 알림용 Incoming Webhook URL
-    discordWebhookUrl: props.getProperty('DISCORD_WEBHOOK_URL') || '',
-    // 알림 on/off (기본 ON, 'false' 일 때만 끔)
-    discordEnabled: props.getProperty('DISCORD_ENABLED') !== 'false',
+    // Slack 알림용 Incoming Webhook URL (유일한 채널)
+    slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
+    slackEnabled: props.getProperty('SLACK_ENABLED') !== 'false',
+
+    // 알림 카테고리 — 채널(Slack)이 ON 이어도 해당 카테고리 OFF 면 전송 X.
+    // 5개 카테고리 모두 기본 ON (opt-out 정책) — 처음 전부 켜놓고 노이즈 느끼면 관리 UI 에서 끔.
+    notify: {
+      batch: props.getProperty('NOTIFY_BATCH') !== 'false',
+      schedule: props.getProperty('NOTIFY_SCHEDULE') !== 'false',
+      user: props.getProperty('NOTIFY_USER') !== 'false',
+      coupon: props.getProperty('NOTIFY_COUPON') !== 'false',
+      settings: props.getProperty('NOTIFY_SETTINGS') !== 'false',
+    },
   };
+  return __configCache;
 }

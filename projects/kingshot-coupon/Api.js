@@ -1,4 +1,4 @@
-/* global getConfig, generateSign */
+/* global getConfig, generateSign, sleepWithJitter_ */
 
 /**
  * Kingshot Coupon - API 호출 레이어
@@ -145,7 +145,7 @@ function redeemCouponWithRetry(fid, code) {
     if (last.result === 'NOT_LOGIN') {
       const login = loginPlayer(fid);
       if (login.ok) {
-        Utilities.sleep(config.requestDelayMs);
+        sleepWithJitter_(config.requestDelayMs);
         continue;
       }
       if (login.rateLimited) {

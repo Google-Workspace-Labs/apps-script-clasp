@@ -1,20 +1,32 @@
-/* global getConfig, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, stampDate_ */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_ */
 
 /**
- * Kingshot Coupon - 웹앱 UI (유저/쿠폰 자가 등록) + Discord 알림
+ * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
  *
  * 구조:
- *   doGet → index.html (유저 등록 / 쿠폰 등록 탭)
- *   클라이언트가 google.script.run.apiRegisterUser / apiRegisterCoupon 호출
- *     - 즉시 알 수 있는 결과(등록 성공/중복/잘못된 코드)는 UI 에 인라인 표시
- *     - 시간이 걸리는 배치는 백그라운드(트리거)로 돌리고 결과는 Discord 로 알림
+ *   doGet → index.html (유저 등록 / 쿠폰 등록 / 🛠 관리)
+ *   클라이언트가 google.script.run 으로 아래 진입점 호출:
+ *     - apiLookupPlayer(fid)                    프로필 조회 (읽기 전용, 비밀번호 X)
+ *     - apiRegisterUser(fid)                    유저 등록
+ *     - apiRegisterCoupon(code)                 쿠폰 등록 + 배치 예약(debounce)
+ *     - apiListManage()                         관리 목록·설정·마지막사용시각 (보기 전용)
+ *     - apiToggleUser(fid, pw)                  유저 활성/비활성 토글
+ *     - apiToggleCoupon(code, pw)               쿠폰 활성/비활성 토글
+ *     - apiDeleteUser(fid, pw)                  유저 삭제
+ *     - apiSetCouponTtl(days, pw)               쿠폰 자동만료 일수 변경
+ *     - apiSetSlackWebhook(url, pw)             Slack Webhook URL 저장/해제(+테스트 전송)
+ *     - apiSetSlackEnabled(on, pw)              Slack 알림 on/off
+ *     - apiSetNotify(category, on, pw)          알림 카테고리(batch/schedule/user/coupon/settings) on/off
+ *     - apiRunBatchNow(pw)                      배치 즉시 실행 예약 (debounce 30s)
  *
  * 동시성:
- *   - 등록은 LockService 로 직렬화(동시 제출 중복행 방지)
- *   - 쿠폰 신규 등록 시 배치는 requestBatch_ 로 debounce(30s) + runCouponBatch 의 Lock 으로 단일 실행
+ *   - 등록/관리 액션은 `safeApiWithLock_` 헬퍼로 LockService 직렬화 (동시 제출/race 방지)
+ *   - 쿠폰 신규 등록 시 배치는 requestBatch_ (Notify.js) 로 debounce(30s) + runCouponBatch Lock
+ *
+ * 알림 / 배치 트리거는 Notify.js 로 분리. 여기서는 호출만 함.
  *
  * ⚠️ google.script.run 은 이름이 _ 로 끝나는 함수를 호출할 수 없으므로
- *    클라이언트용 진입점은 apiRegisterUser / apiRegisterCoupon (언더스코어 없음).
+ *    클라이언트 진입점은 모두 api... (언더스코어 없음), 내부 헬퍼는 _ 접미사.
  */
 
 // ============================================================
@@ -31,29 +43,104 @@ function doGet() {
 // 클라이언트 호출 진입점 (google.script.run)
 // ============================================================
 
+/**
+ * 모든 api* 진입점의 외곽 try/catch 안전망.
+ *  - 본문에서 throw 발생 시: system_logs 에 ERROR 기록(메시지+스택) + 구조화된 응답 반환
+ *  - 클라이언트는 항상 {ok, message} 구조를 받음 → `withFailureHandler` 거의 안 불림
+ *  - "⚠️ undefined" 같은 미스터리 메시지 사라지고, 실제 원인이 system_logs 에 남음
+ * @param {string} name  api 함수명 (예: 'apiDeleteUser')
+ * @param {Function} fn  실행할 함수
+ * @returns {*} fn 의 반환값 또는 {ok:false, message:'❌ 서버 오류: ...'}
+ */
+function safeApi_(name, fn) {
+  try {
+    return fn();
+  } catch (err) {
+    const msg = err && err.message ? err.message : String(err);
+    const stack = err && err.stack ? String(err.stack).slice(0, 400) : '-';
+    try {
+      logSystem_('ERROR', name, `${msg} | stack: ${stack}`, '');
+    } catch (logErr) {
+      // 로깅 실패는 조용히 무시 (시트 권한 문제 등)
+    }
+    return { ok: false, message: `❌ 서버 오류: ${msg}` };
+  }
+}
+
+/**
+ * safeApi_ + LockService 콤보 — 5개 api 함수의 동일 패턴 추출.
+ * lock 획득 실패 시 "서버 바쁨" 메시지로 graceful degradation.
+ * @param {string} name  api 함수명 (system_logs source 로 사용)
+ * @param {Function} fn  실행 본문 — lock 보유 중에 호출됨, finally 에서 자동 release
+ */
+function safeApiWithLock_(name, fn) {
+  return safeApi_(name, () => {
+    const lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(15000);
+    } catch (e) {
+      return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
+    }
+    try {
+      return fn();
+    } finally {
+      lock.releaseLock();
+    }
+  });
+}
+
+/** 유저 등록을 위한 자동 배치 debounce (3분).
+ *  - 쿠폰 등록(30s) 보다 길게 잡아 유저 burst 자연 흡수
+ *  - 그 사이 쿠폰 등록(30s)이 오면 자동 단축됨 (트리거 청소 + 짧은 게 이김) */
+const USER_BATCH_DEBOUNCE_MS = 180 * 1000;
+
 /** 유저 등록 (UI). @returns {{ok:boolean, message:string}} */
 function apiRegisterUser(fid) {
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
-  } catch (e) {
-    return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
-  }
-
-  try {
+  return safeApiWithLock_('apiRegisterUser', () => {
     const res = registerUserByFid_(fid);
     if (res.ok) {
-      const msg = `✅ 등록 완료: ${res.nickname || '(닉네임 없음)'} (ID ${res.fid}) — ${res.before} → ${res.after}명`;
-      const embed = {
-        title: '👤 유저 등록 완료',
-        description: `**${res.nickname || '(닉네임 없음)'}**\n🆔 \`${res.fid}\`  ·  👥 ${res.before} → ${res.after}명`,
-        color: DISCORD_COLORS.green,
-        timestamp: new Date().toISOString(),
-      };
-      if (res.avatar) {
-        embed.thumbnail = { url: res.avatar };
+      // 활성 쿠폰이 _하나라도_ 있을 때만 배치 예약 (없으면 빈 배치 돌릴 이유 없음).
+      // 첫 운영 상황 (시트 카피 후 유저만 추가) 에서 무의미한 트리거 + 헷갈리는 메시지 방지.
+      const hasCoupons = hasActiveCoupons_();
+      if (hasCoupons) {
+        // 신규 유저는 기존 활성 쿠폰들을 받지 못한 상태 → 자동 배치 예약(180s debounce)
+        // dedup 이 기존 유저들은 SKIP 처리하므로, 실제 호출은 신규 유저 × 활성 쿠폰만큼만 발생.
+        requestBatch_(USER_BATCH_DEBOUNCE_MS);
       }
-      notifyDiscordEmbed_(embed);
+
+      // 등록 자체 알림 — 카테고리 user (default OFF)
+      notify_(
+        {
+          title: '👤 유저 등록 완료',
+          description: `🏷️ **${res.nickname || '(닉네임 없음)'}**\n🆔 \`${res.fid}\`  ·  👥 ${res.before} → ${res.after}명`,
+          color: NOTIFY_COLORS.green,
+          // 우측에 75x75 아바타 (있을 때만) — Kingshot 응답에 avatar_image 없는 유저는 자동 생략
+          thumbnail: res.avatar ? { url: res.avatar } : undefined,
+          timestamp: new Date().toISOString(),
+        },
+        'user-register',
+        'user',
+      );
+
+      // 배치 예약 알림은 _실제로 예약했을 때만_ 발송 (카테고리 schedule, default OFF)
+      if (hasCoupons) {
+        notify_(
+          {
+            title: '⏱ 배치 예약 (유저 등록)',
+            description: `약 3분 뒤 자동 배치 — 신규 유저에 활성 쿠폰 발급`,
+            color: NOTIFY_COLORS.green,
+            timestamp: new Date().toISOString(),
+          },
+          'schedule-user',
+          'schedule',
+        );
+      }
+
+      // 사용자에게 보일 메시지도 상황별로 분기
+      const baseMsg = `✅ 등록 완료: ${res.nickname || '(닉네임 없음)'} (ID ${res.fid}) — ${res.before} → ${res.after}명`;
+      const msg = hasCoupons
+        ? `${baseMsg}\n약 3분 안에 등록된 쿠폰이 자동 발급됩니다 (Slack 알림).`
+        : `${baseMsg}\n(※ 등록된 활성 쿠폰이 없어 배치는 예약하지 않음 — 쿠폰 등록 시 자동 발급됩니다)`;
       return { ok: true, message: msg };
     }
     if (res.duplicate) {
@@ -63,25 +150,12 @@ function apiRegisterUser(fid) {
       };
     }
     return { ok: false, message: `❌ ${res.reason}` };
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 
 /** 쿠폰 등록 (UI). 신규·유효하면 추가 후 배치 예약. @returns {{ok:boolean, message:string}} */
 function apiRegisterCoupon(code) {
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
-  } catch (e) {
-    return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
-  }
-
-  try {
-    return registerCouponNow_(code);
-  } finally {
-    lock.releaseLock();
-  }
+  return safeApiWithLock_('apiRegisterCoupon', () => registerCouponNow_(code));
 }
 
 /**
@@ -89,24 +163,26 @@ function apiRegisterCoupon(code) {
  * @returns {{ok:boolean, profile?:Object, registered?:boolean, message?:string}}
  */
 function apiLookupPlayer(fid) {
-  const clean = String(fid || '').trim();
-  if (!/^\d+$/.test(clean)) {
-    return { ok: false, message: '❌ ID 는 숫자만 가능합니다.' };
-  }
+  return safeApi_('apiLookupPlayer', () => {
+    const clean = String(fid || '').trim();
+    if (!/^\d+$/.test(clean)) {
+      return { ok: false, message: '❌ ID 는 숫자만 가능합니다.' };
+    }
 
-  const login = loginPlayer(clean);
-  if (!login.ok) {
-    const reason = login.rateLimited ? '일시적 제한(429) — 잠시 후 다시' : login.message;
-    return { ok: false, message: `❌ 조회 실패: ${reason}` };
-  }
+    const login = loginPlayer(clean);
+    if (!login.ok) {
+      const reason = login.rateLimited ? '일시적 제한(429) — 잠시 후 다시' : login.message;
+      return { ok: false, message: `❌ 조회 실패: ${reason}` };
+    }
 
-  const existing = findUser_(clean);
-  return {
-    ok: true,
-    profile: buildProfile_(clean, login.data),
-    registered: !!existing,
-    active: existing ? !!existing.active : false,
-  };
+    const existing = findUser_(clean);
+    return {
+      ok: true,
+      profile: buildProfile_(clean, login.data),
+      registered: !!existing,
+      active: existing ? !!existing.active : false,
+    };
+  });
 }
 
 /** 로그인 응답(data)에서 화면 표시용 프로필 객체 생성 */
@@ -140,185 +216,271 @@ function checkDatePassword_(password) {
 
 /** 유저 active 토글 (웹 UI). @returns {{ok:boolean, message:string}} */
 function apiToggleUser(fid, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
-  } catch (e) {
-    return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
-  }
-  try {
+  return safeApiWithLock_('apiToggleUser', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
     const user = findUser_(fid);
     if (!user) {
       return { ok: false, message: `ID ${String(fid).trim()} 를 찾을 수 없습니다.` };
     }
+    const prev = user.active;
     const next = !user.active;
-    const config = getConfig();
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.users);
-    sheet.getRange(user.row, 3).setValue(next); // active = C열
-    stampDate_(sheet, user.row, 5, new Date()); // updated = E열
+    const nick = user.nickname || '(닉네임 없음)';
+    const cleanFid = String(fid).trim();
+    const fmtKr = (b) => (b ? '활성' : '비활성');
+    const fmtEn = (b) => (b ? 'active' : 'inactive');
+    const sheet = requireSheet_('users');
+    sheet.getRange(user.row, COL.users.active).setValue(next);
+    stampDate_(sheet, user.row, COL.users.updated, new Date());
     touchManage_();
-    notifyDiscordEmbed_({
-      title: `🔁 유저 ${next ? '활성화' : '비활성화'}`,
-      description: `**${user.nickname || '(닉네임 없음)'}**\n🆔 \`${String(fid).trim()}\``,
-      color: next ? DISCORD_COLORS.green : DISCORD_COLORS.gray,
-      timestamp: new Date().toISOString(),
-    });
+    logSystem_(
+      'INFO',
+      'user-toggle',
+      `web — nick:${nick} (${fmtEn(prev)} → ${fmtEn(next)})`,
+      cleanFid,
+    );
+    notify_(
+      {
+        title: `🔁 ${nick}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+        description: `🆔 \`${cleanFid}\``,
+        color: next ? NOTIFY_COLORS.green : NOTIFY_COLORS.gray,
+        timestamp: new Date().toISOString(),
+      },
+      'user-toggle',
+      'user',
+    );
     return {
       ok: true,
       active: next,
-      message: `✅ ${user.nickname || '(닉네임 없음)'} → ${next ? '활성화' : '비활성화'}`,
+      message: `✅ ${nick}: ${fmtKr(prev)} → ${fmtKr(next)}`,
     };
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 
 /** 쿠폰 enabled 토글 (웹 UI). @returns {{ok:boolean, enabled?:boolean, message:string}} */
 function apiToggleCoupon(code, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
-  } catch (e) {
-    return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
-  }
-  try {
+  return safeApiWithLock_('apiToggleCoupon', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
     const c = findCoupon_(code);
     if (!c) {
       return { ok: false, message: `쿠폰 ${String(code).trim()} 를 찾을 수 없습니다.` };
     }
+    const prev = c.enabled;
     const next = !c.enabled;
-    const config = getConfig();
-    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.coupons);
-    sheet.getRange(c.row, 2).setValue(next); // enabled = B열
-    stampDate_(sheet, c.row, 5, new Date()); // updated = E열
+    const cleanCode = String(code).trim();
+    const fmtKr = (b) => (b ? '활성' : '비활성');
+    const fmtEn = (b) => (b ? 'enabled' : 'disabled');
+    const sheet = requireSheet_('coupons');
+    sheet.getRange(c.row, COL.coupons.enabled).setValue(next);
+    stampDate_(sheet, c.row, COL.coupons.updated, new Date());
     touchManage_();
-    notifyDiscordEmbed_({
-      title: `🔁 쿠폰 ${next ? '활성화' : '비활성화'}`,
-      description: `🎁 \`${String(code).trim()}\``,
-      color: next ? DISCORD_COLORS.green : DISCORD_COLORS.gray,
-      timestamp: new Date().toISOString(),
-    });
+    logSystem_(
+      'INFO',
+      'coupon-toggle',
+      `web — code:${cleanCode} (${fmtEn(prev)} → ${fmtEn(next)})`,
+      cleanCode,
+    );
+    notify_(
+      {
+        title: `🔁 ${cleanCode}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+        description: '',
+        color: next ? NOTIFY_COLORS.green : NOTIFY_COLORS.gray,
+        timestamp: new Date().toISOString(),
+      },
+      'coupon-toggle',
+      'coupon',
+    );
     return {
       ok: true,
       enabled: next,
-      message: `✅ ${String(code).trim()} → ${next ? '활성화' : '비활성화'}`,
+      message: `✅ ${cleanCode}: ${fmtKr(prev)} → ${fmtKr(next)}`,
     };
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 
 /**
- * 관리 목록 조회(보기 전용, 비번 불필요). 변경/삭제 액션만 비번으로 보호.
+ * 관리 목록 조회(보기 전용, 비밀번호 불필요). 변경/삭제 액션만 비밀번호으로 보호.
  * @returns {{ok:boolean, users:Array, coupons:Array, ttlDays:number}}
  */
 function apiListManage() {
-  const config = getConfig();
-  const usersRaw = readUsers_();
-  const couponsRaw = readCoupons_();
+  return safeApi_('apiListManage', () => {
+    const config = getConfig();
+    const usersRaw = readUsers_();
+    const couponsRaw = readCoupons_();
 
-  // 정렬: 활성(만료 안 됨) 먼저 → 2차로 최신 등록순(created desc)
-  const newest = (a, b) =>
-    (b.created ? b.created.getTime() : 0) - (a.created ? a.created.getTime() : 0);
-  // 유저: 활성 먼저만 (그 안에선 등록 순서 유지)
-  const users = usersRaw
-    .slice()
-    .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0))
-    .map((u) => ({ fid: u.fid, nickname: u.nickname || '', active: u.active }));
-  // 쿠폰: 활성 먼저 → 최신 등록순
-  const coupons = couponsRaw
-    .slice()
-    .sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || newest(a, b))
-    .map((c) => ({
-      code: c.code,
-      enabled: c.enabled,
-      status: c.status || '',
-      created: c.created ? Utilities.formatDate(c.created, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : '',
-    }));
+    // 정렬: 활성(만료 안 됨) 먼저 → 2차로 최신 등록순(created desc)
+    const newest = (a, b) =>
+      (b.created ? b.created.getTime() : 0) - (a.created ? a.created.getTime() : 0);
+    // 유저: 활성 먼저만 (그 안에선 등록 순서 유지)
+    const users = usersRaw
+      .slice()
+      .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0))
+      .map((u) => ({ fid: u.fid, nickname: u.nickname || '', active: u.active }));
+    // 쿠폰: 활성 먼저 → 최신 등록순
+    const coupons = couponsRaw
+      .slice()
+      .sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || newest(a, b))
+      .map((c) => ({
+        code: c.code,
+        enabled: c.enabled,
+        status: c.status || '',
+        created: c.created ? Utilities.formatDate(c.created, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : '',
+      }));
 
-  return {
-    ok: true,
-    ttlDays: config.couponTtlDays,
-    users,
-    coupons,
-    // 헤더 표시용 "마지막 사용시각" — 시트 안 보는 사용자용
-    lastUserReg: fmtTs_(maxCreated_(usersRaw)), // 유저 created 최댓값
-    lastCouponReg: fmtTs_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
-    lastManage: PropertiesService.getScriptProperties().getProperty('LAST_MANAGE_AT') || '',
-    discordSet: !!config.discordWebhookUrl, // URL 자체는 노출하지 않음(비밀)
-    discordEnabled: !!config.discordWebhookUrl && config.discordEnabled,
-  };
+    const props = PropertiesService.getScriptProperties();
+    return {
+      ok: true,
+      ttlDays: config.couponTtlDays,
+      users,
+      coupons,
+      // 헤더 표시용 "마지막 사용시각" — 시트 안 보는 사용자용
+      lastUserReg: fmtTs_(maxCreated_(usersRaw)), // 유저 created 최댓값
+      lastCouponReg: fmtTs_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
+      lastManage: props.getProperty('LAST_MANAGE_AT') || '',
+      lastBatch: props.getProperty('LAST_BATCH_AT') || '', // 배치 신선도 표시용
+      slackSet: !!config.slackWebhookUrl, // URL 자체는 노출하지 않음(비밀)
+      slackEnabled: !!config.slackWebhookUrl && config.slackEnabled,
+      notify: {
+        batch: !!config.notify.batch,
+        schedule: !!config.notify.schedule,
+        user: !!config.notify.user,
+        coupon: !!config.notify.coupon,
+        settings: !!config.notify.settings,
+      },
+    };
+  });
 }
 
 /**
- * Discord Webhook URL 설정/해제 (비번 필요). URL 자체는 반환하지 않음.
- * 빈 값이면 해제. @returns {{ok:boolean, message:string, discordSet?:boolean}}
+ * Slack Webhook URL 설정/해제 (비밀번호 필요).
+ * 저장 시 자동 ON + 테스트 메시지 전송. URL 자체는 반환하지 않음(비밀).
+ * URL 형태: https://hooks.slack.com/services/T.../B.../...
  */
-function apiSetDiscordWebhook(url, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const props = PropertiesService.getScriptProperties();
-  const u = String(url || '').trim();
+function apiSetSlackWebhook(url, password) {
+  return safeApi_('apiSetSlackWebhook', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    const props = PropertiesService.getScriptProperties();
+    const u = String(url || '').trim();
 
-  if (!u) {
-    props.deleteProperty('DISCORD_WEBHOOK_URL');
+    if (!u) {
+      props.deleteProperty('SLACK_WEBHOOK_URL');
+      invalidateConfigCache_();
+      touchManage_();
+      logSystem_('INFO', 'settings-slack-url', 'webhook cleared', '');
+      return { ok: true, message: '✅ Slack 웹훅 해제됨', slackSet: false };
+    }
+    if (!/^https:\/\//.test(u) || !/hooks\.slack\.com\/services\//.test(u)) {
+      return { ok: false, message: '❌ 올바른 Slack 웹훅 URL이 아닙니다.' };
+    }
+    props.setProperty('SLACK_WEBHOOK_URL', u);
+    props.setProperty('SLACK_ENABLED', 'true');
+    invalidateConfigCache_();
     touchManage_();
-    return { ok: true, message: '✅ Discord 웹훅 해제됨', discordSet: false };
-  }
-  if (!/^https:\/\//.test(u) || !/discord(app)?\.com\/api\/.*webhooks\//.test(u)) {
-    return { ok: false, message: '❌ 올바른 Discord 웹훅 URL이 아닙니다.' };
-  }
-  props.setProperty('DISCORD_WEBHOOK_URL', u);
-  props.setProperty('DISCORD_ENABLED', 'true'); // 저장하면 알림 ON
-  touchManage_();
-  notifyDiscordEmbed_({
-    title: '✅ Discord 연동 완료',
-    description: '이 채널로 알림이 전송됩니다. (테스트 메시지)',
-    color: DISCORD_COLORS.green,
-    timestamp: new Date().toISOString(),
+    // ⚠️ URL 자체는 secret 성격 — message 에 도메인만 기록, 전체 URL 은 sheet 에 저장된 그대로 참조
+    logSystem_('INFO', 'settings-slack-url', 'webhook set (slack auto-enabled)', '');
+    notifySlack_(
+      {
+        title: '✅ Slack 연동 완료',
+        description: '이 채널로 알림이 전송됩니다. (테스트 메시지)',
+        color: NOTIFY_COLORS.green,
+        timestamp: new Date().toISOString(),
+      },
+      'webhook',
+    );
+    return { ok: true, message: '✅ Slack 웹훅 저장됨 (테스트 알림 전송)', slackSet: true };
   });
-  return { ok: true, message: '✅ Discord 웹훅 저장됨 (테스트 알림 전송)', discordSet: true };
 }
 
-/** Discord 알림 on/off 토글 (비번 필요). @returns {{ok:boolean, enabled?:boolean, message:string}} */
-function apiSetDiscordEnabled(enabled, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const props = PropertiesService.getScriptProperties();
-  const on = enabled === true || enabled === 'true';
-  if (on && !props.getProperty('DISCORD_WEBHOOK_URL')) {
-    return { ok: false, message: '❌ 먼저 Webhook URL을 저장하세요.' };
-  }
+/** Slack 알림 on/off 토글 (비밀번호 필요). */
+function apiSetSlackEnabled(enabled, password) {
+  return safeApi_('apiSetSlackEnabled', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    const props = PropertiesService.getScriptProperties();
+    const on = enabled === true || enabled === 'true';
+    if (on && !props.getProperty('SLACK_WEBHOOK_URL')) {
+      return { ok: false, message: '❌ 먼저 Webhook URL을 저장하세요.' };
+    }
 
-  if (on) {
-    props.setProperty('DISCORD_ENABLED', 'true');
+    // 이전 상태 — Slack/로그 메시지의 화살표 좌측에 들어감 (default !== 'false' → 기본 ON)
+    const prevOn = props.getProperty('SLACK_ENABLED') !== 'false';
+    const fmt = (b) => (b ? 'ON' : 'OFF');
+
+    if (on) {
+      props.setProperty('SLACK_ENABLED', 'true');
+      invalidateConfigCache_();
+      touchManage_();
+      logSystem_('INFO', 'settings-slack-on', `slack: ${fmt(prevOn)} → ${fmt(on)}`, '');
+      notifySlack_(
+        {
+          title: `🔔 Slack 알림: ${fmt(prevOn)} → ${fmt(on)}`,
+          description: '이제 이벤트 알림이 이 채널로 전송됩니다.',
+          color: NOTIFY_COLORS.green,
+          timestamp: new Date().toISOString(),
+        },
+        'on',
+      );
+    } else {
+      // 끄기 직전(아직 ON 상태)에 마지막 메시지 전송
+      notifySlack_(
+        {
+          title: `🔕 Slack 알림: ${fmt(prevOn)} → ${fmt(on)}`,
+          description: '이후 알림이 전송되지 않습니다. (마지막 메시지)',
+          color: NOTIFY_COLORS.gray,
+          timestamp: new Date().toISOString(),
+        },
+        'off',
+      );
+      props.setProperty('SLACK_ENABLED', 'false');
+      invalidateConfigCache_();
+      touchManage_();
+      logSystem_('INFO', 'settings-slack-on', `slack: ${fmt(prevOn)} → ${fmt(on)}`, '');
+    }
+    return { ok: true, enabled: on, message: `✅ Slack: ${fmt(prevOn)} → ${fmt(on)}` };
+  });
+}
+
+/** 알림 카테고리 5개 (batch/schedule/user/coupon/settings) 의 개별 토글 */
+const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings'];
+const NOTIFY_PROP_KEYS = {
+  batch: 'NOTIFY_BATCH',
+  schedule: 'NOTIFY_SCHEDULE',
+  user: 'NOTIFY_USER',
+  coupon: 'NOTIFY_COUPON',
+  settings: 'NOTIFY_SETTINGS',
+};
+
+/** 알림 카테고리 ON/OFF (비밀번호 필요). */
+function apiSetNotify(category, enabled, password) {
+  return safeApi_('apiSetNotify', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    if (NOTIFY_CATEGORIES.indexOf(category) < 0) {
+      return { ok: false, message: `❌ 알 수 없는 카테고리: ${category}` };
+    }
+    const props = PropertiesService.getScriptProperties();
+    // 기본값 ON (!== 'false') — Property 미존재면 prev=true
+    const prev = props.getProperty(NOTIFY_PROP_KEYS[category]) !== 'false';
+    const on = enabled === true || enabled === 'true';
+    props.setProperty(NOTIFY_PROP_KEYS[category], on ? 'true' : 'false');
+    invalidateConfigCache_();
     touchManage_();
-    notifyDiscordEmbed_({
-      title: '🔔 Discord 알림 ON',
-      description: '이제 이벤트 알림이 이 채널로 전송됩니다.',
-      color: DISCORD_COLORS.green,
-      timestamp: new Date().toISOString(),
-    });
-  } else {
-    // 끄기 직전(아직 ON 상태)에 마지막 메시지 전송 → 사용자가 OFF 를 즉시 인지
-    notifyDiscordEmbed_({
-      title: '🔕 Discord 알림 OFF',
-      description: '이후 알림이 전송되지 않습니다. (마지막 메시지)',
-      color: DISCORD_COLORS.gray,
-      timestamp: new Date().toISOString(),
-    });
-    props.setProperty('DISCORD_ENABLED', 'false');
-    touchManage_();
-  }
-  return { ok: true, enabled: on, message: on ? '✅ Discord 알림 ON' : '✅ Discord 알림 OFF' };
+    const fmt = (b) => (b ? 'on' : 'off');
+    logSystem_('INFO', 'settings-notify', `notify[${category}]: ${fmt(prev)} → ${fmt(on)}`, '');
+    return {
+      ok: true,
+      category,
+      enabled: on,
+      message: `✅ 알림[${category}]: ${fmt(prev).toUpperCase()} → ${fmt(on).toUpperCase()}`,
+    };
+  });
 }
 
 /** rows 중 created(Date) 최댓값 반환 */
@@ -347,57 +509,84 @@ function touchManage_() {
 
 /** 쿠폰 자동만료 일수(TTL) 변경 → Script Property 저장. @returns {{ok:boolean, ttlDays?:number, message:string}} */
 function apiSetCouponTtl(days, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const n = parseInt(days, 10);
-  if (isNaN(n) || n < 0 || n > 365) {
-    return { ok: false, message: '❌ 0~365 사이 숫자를 입력하세요.' };
-  }
-  PropertiesService.getScriptProperties().setProperty('KINGSHOT_COUPON_TTL_DAYS', String(n));
-  touchManage_();
-  notifyDiscordEmbed_({
-    title: '⏳ 쿠폰 자동만료 설정 변경',
-    description: n === 0 ? '자동만료 **끔**' : `자동만료 **${n}일**`,
-    color: DISCORD_COLORS.blue,
-    timestamp: new Date().toISOString(),
+  return safeApi_('apiSetCouponTtl', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    const n = parseInt(days, 10);
+    if (isNaN(n) || n < 0 || n > 365) {
+      return { ok: false, message: '❌ 0~365 사이 숫자를 입력하세요.' };
+    }
+    const props = PropertiesService.getScriptProperties();
+    const prevRaw = props.getProperty('KINGSHOT_COUPON_TTL_DAYS');
+    const prevN = prevRaw === null ? null : parseInt(prevRaw, 10);
+    props.setProperty('KINGSHOT_COUPON_TTL_DAYS', String(n));
+    invalidateConfigCache_();
+    touchManage_();
+
+    // 표시 포맷: Slack/UI 는 한국어 + 끔, 로그는 영문 (`days`/`off`/`unset`)
+    const fmtKr = (v) => (v === null ? '(미설정)' : v === 0 ? '끔' : `${v}일`);
+    const fmtEn = (v) => (v === null ? 'unset' : v === 0 ? 'off' : `${v} days`);
+
+    logSystem_('INFO', 'settings-ttl', `TTL: ${fmtEn(prevN)} → ${fmtEn(n)}`, '');
+    notify_(
+      {
+        title: '⏳ 쿠폰 자동만료(TTL) 변경',
+        description: `**${fmtKr(prevN)} → ${fmtKr(n)}**`,
+        color: NOTIFY_COLORS.green,
+        timestamp: new Date().toISOString(),
+      },
+      'settings-ttl',
+      'settings',
+    );
+    return {
+      ok: true,
+      ttlDays: n,
+      message: `✅ TTL: ${fmtKr(prevN)} → ${fmtKr(n)}`,
+    };
   });
-  return { ok: true, ttlDays: n, message: `✅ 쿠폰 자동만료 ${n === 0 ? '끔' : n + '일'} 로 설정` };
 }
 
 /** 유저 삭제 (웹 UI). @returns {{ok:boolean, message:string}} */
 function apiDeleteUser(fid, password) {
-  if (!checkDatePassword_(password)) {
-    return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
-  }
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(15000);
-  } catch (e) {
-    return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
-  }
-  try {
+  return safeApiWithLock_('apiDeleteUser', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
     const user = findUser_(fid);
     if (!user) {
       return { ok: false, message: `ID ${String(fid).trim()} 를 찾을 수 없습니다.` };
     }
-    const config = getConfig();
     const removedNick = user.nickname || '(닉네임 없음)';
-    SpreadsheetApp.getActiveSpreadsheet().getSheetByName(config.sheets.users).deleteRow(user.row);
+    const cleanFid = String(fid).trim();
+    const before = countUsers_();
+    requireSheet_('users').deleteRow(user.row);
+    const purgedLogs = purgeLogsForUser_(cleanFid);
+    const after = countUsers_();
     touchManage_();
-    notifyDiscordEmbed_({
-      title: '🗑️ 유저 삭제',
-      description: `**${removedNick}**\n🆔 \`${String(fid).trim()}\``,
-      color: DISCORD_COLORS.orange,
-      timestamp: new Date().toISOString(),
-    });
+    logSystem_(
+      'INFO',
+      'user-delete',
+      `web — nick:${removedNick} (${before} → ${after}), logs purged:${purgedLogs}`,
+      cleanFid,
+    );
+    notify_(
+      {
+        title: '🗑️ 유저 삭제 완료',
+        description:
+          `🏷️ **${removedNick}**\n🆔 \`${cleanFid}\`  ·  👥 ${before} → ${after}명` +
+          `\n🧹 logs ${purgedLogs}건 정리`,
+        color: NOTIFY_COLORS.orange,
+        timestamp: new Date().toISOString(),
+      },
+      'user-delete',
+      'user',
+    );
     return {
       ok: true,
-      message: `🗑️ 삭제 완료: ${removedNick} (ID ${String(fid).trim()})`,
+      message: `🗑️ 삭제 완료: ${removedNick} (ID ${cleanFid}) — ${before} → ${after}명 · logs ${purgedLogs}건 정리`,
     };
-  } finally {
-    lock.releaseLock();
-  }
+  });
 }
 
 // ============================================================
@@ -450,9 +639,12 @@ function registerUserByFid_(fid) {
 }
 
 /**
- * 쿠폰 등록: 공백제거 → 중복검사 → 단건 검증(login+redeem) →
- *   없음/만료면 거부(추가 안 함), 유효/보류면 추가 후 배치 예약(debounce).
- * @returns {{ok:boolean, message:string}}
+ * 쿠폰 등록: 공백제거 → 시트 캐시 조회 → 단건 검증(login+redeem) → 분기:
+ *   - 살아있는 코드(VALID/PENDING) → 시트 추가(enabled=TRUE) + 배치 예약
+ *   - 죽은 코드(EXPIRED/INVALID_CODE) → 시트 추가(enabled=FALSE) 로 캐시 → 다음 시도 시 API 없이 차단
+ *   - 캐시 히트(이미 등록 또는 이전에 죽은 것으로 확인) → API 없이 사유별 메시지
+ * @returns {{ok:boolean, message:string, sheetUpdated?:boolean}}
+ *   sheetUpdated: ok=false 라도 시트에 새 행이 추가됐다는 신호 (UI list 새로고침용)
  */
 function registerCouponNow_(codeRaw) {
   const code = String(codeRaw || '').trim();
@@ -460,7 +652,17 @@ function registerCouponNow_(codeRaw) {
     return { ok: false, message: '❌ 쿠폰 코드를 입력하세요.' };
   }
 
-  if (findCoupon_(code)) {
+  // 캐시 히트 — 이미 시트에 같은 코드가 있으면 API 호출 없이 즉시 처리
+  const existing = findCoupon_(code);
+  if (existing) {
+    const s = String(existing.status || '').toUpperCase();
+    if (s === 'EXPIRED' || s === 'EXPIRED_AGE') {
+      return { ok: false, message: `❌ 만료된 코드: ${code} (이전 확인됨 · API 없이 차단)` };
+    }
+    if (s === 'INVALID_CODE') {
+      return { ok: false, message: `❌ 존재하지 않는 코드: ${code} (이전 확인됨 · API 없이 차단)` };
+    }
+    // VALID/PENDING 등 살아있는 상태
     return { ok: false, message: `ℹ️ 이미 등록된 쿠폰: ${code}` };
   }
 
@@ -472,11 +674,42 @@ function registerCouponNow_(codeRaw) {
     const login = loginPlayer(validateFid);
     if (login.ok) {
       const r = redeemCoupon(validateFid, code);
+      // 죽은 코드도 시트에 enabled=FALSE 로 기록 → 같은 코드 재시도 시 캐시 차단(API 호출 절약)
       if (r.result === 'INVALID_CODE') {
-        return { ok: false, message: `❌ 존재하지 않는 코드(CDK NOT FOUND): ${code} — 등록 안 함` };
+        addCouponToSheet_(code, 'INVALID_CODE', /*enabled=*/ false);
+        notify_(
+          {
+            title: '🎟 쿠폰 등록 거부 (존재 X)',
+            description: `\`${code}\` — INVALID_CODE, dead code 캐시 기록`,
+            color: NOTIFY_COLORS.red,
+            timestamp: new Date().toISOString(),
+          },
+          'coupon-invalid',
+          'coupon',
+        );
+        return {
+          ok: false,
+          sheetUpdated: true,
+          message: `❌ 존재하지 않는 코드(CDK NOT FOUND): ${code} — 시트에 기록(향후 자동 차단)`,
+        };
       }
       if (r.result === 'EXPIRED') {
-        return { ok: false, message: `❌ 만료된 코드(TIME ERROR): ${code} — 등록 안 함` };
+        addCouponToSheet_(code, 'EXPIRED', /*enabled=*/ false);
+        notify_(
+          {
+            title: '🎟 쿠폰 등록 거부 (만료)',
+            description: `\`${code}\` — EXPIRED, dead code 캐시 기록`,
+            color: NOTIFY_COLORS.orange,
+            timestamp: new Date().toISOString(),
+          },
+          'coupon-expired',
+          'coupon',
+        );
+        return {
+          ok: false,
+          sheetUpdated: true,
+          message: `❌ 만료된 코드(TIME ERROR): ${code} — 시트에 기록(향후 자동 차단)`,
+        };
       }
       if (r.result === 'SUCCESS' || r.result === 'ALREADY_USED') {
         status = 'VALID';
@@ -489,89 +722,67 @@ function registerCouponNow_(codeRaw) {
     }
   }
 
+  // 살아있는 코드 — enabled=true 로 등록 + 배치 예약
   addCouponToSheet_(code, status);
   requestBatch_();
-  notifyDiscordEmbed_({
-    title: '🆕 신규 쿠폰 등록',
-    description: `🎁 \`${code}\`\n상태: ${status} · ${note}\n배치가 예약되었습니다 — 결과는 곧 알림됩니다.`,
-    color: DISCORD_COLORS.blue,
-    timestamp: new Date().toISOString(),
-  });
+
+  notify_(
+    {
+      title: '🎟 쿠폰 등록 완료',
+      description: `🎟 \`${code}\`\n📍 상태: **${status}** _(${note})_`,
+      color: NOTIFY_COLORS.green,
+      timestamp: new Date().toISOString(),
+    },
+    'coupon-register',
+    'coupon',
+  );
+  notify_(
+    {
+      title: '⏱ 배치 예약 (쿠폰 등록)',
+      description: `약 30초 뒤 자동 배치 — 신규 쿠폰 \`${code}\` 전 유저에 발급`,
+      color: NOTIFY_COLORS.green,
+      timestamp: new Date().toISOString(),
+    },
+    'schedule-coupon',
+    'schedule',
+  );
 
   return {
     ok: true,
-    message: `✅ 쿠폰 등록: ${code} [${status}, ${note}]\n곧 배치가 백그라운드로 실행되며, 결과는 Discord 로 알립니다.`,
+    sheetUpdated: true,
+    message: `✅ 쿠폰 등록: ${code} [${status}, ${note}]\n곧 배치가 백그라운드로 실행되며, 결과는 Slack 으로 알립니다.`,
   };
 }
 
-// ============================================================
-// 배치 예약(debounce) / 트리거 / Discord 알림
-// ============================================================
-
 /**
- * 배치 실행을 debounce 로 예약한다.
- * 기존 예약 트리거를 지우고 30초 뒤 1회성 트리거를 만들어,
- * 연달아 등록해도 버스트가 끝난 뒤 배치가 한 번만 돌게 한다.
+ * 수동 배치 실행 (관리 UI 비밀번호 게이트).
+ * 동기 실행은 6분 요청 한도 위험 → debounce 트리거 예약으로 통일 (약 30초 뒤 실행).
+ * tryLock(0) 보호로 이미 도는 중이면 새로 안 시작 (debounce 만 재예약).
+ * @returns {{ok:boolean, message:string}}
  */
-function requestBatch_() {
-  removeTriggers_('runCouponBatch');
-  ScriptApp.newTrigger('runCouponBatch')
-    .timeBased()
-    .after(30 * 1000)
-    .create();
-}
-
-/** 특정 핸들러의 트리거 제거(중복 누적 방지) */
-function removeTriggers_(handlerName) {
-  for (const t of ScriptApp.getProjectTriggers()) {
-    if (t.getHandlerFunction() === handlerName) {
-      ScriptApp.deleteTrigger(t);
+function apiRunBatchNow(password) {
+  return safeApi_('apiRunBatchNow', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
     }
-  }
+    requestBatch_(); // 기본 30s
+    touchManage_();
+    logSystem_('INFO', 'schedule-manual', 'manual batch trigger requested', '');
+    notify_(
+      {
+        title: '⚡ 즉시 배치 실행',
+        description: '수동 트리거 — 약 30초 뒤 자동 시작',
+        color: NOTIFY_COLORS.green,
+        timestamp: new Date().toISOString(),
+      },
+      'schedule-manual',
+      'schedule',
+    );
+    return {
+      ok: true,
+      message: '⚡ 배치 예약됨 — 약 30초 안에 실행되고 결과는 Slack 으로 알립니다.',
+    };
+  });
 }
 
-// Discord 임베드 색상 (decimal)
-const DISCORD_COLORS = {
-  green: 3066993,
-  blue: 3447003,
-  orange: 15105570,
-  red: 15158332,
-  gray: 9807270,
-};
-
-/** Discord 임베드 전송 (URL 미설정 시 무시) */
-function notifyDiscordEmbed_(embed) {
-  const config = getConfig();
-  const url = config.discordWebhookUrl;
-  if (!url || !config.discordEnabled) {
-    return; // URL 없거나 알림 OFF면 전송 안 함
-  }
-  const payload = JSON.stringify({ embeds: [embed] });
-  // 연속 알림 시 Discord webhook rate limit(429)로 메시지가 누락되지 않도록 retry_after 만큼 대기 후 재시도
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const res = UrlFetchApp.fetch(url, {
-        method: 'post',
-        contentType: 'application/json',
-        payload,
-        muteHttpExceptions: true,
-      });
-      if (res.getResponseCode() !== 429) {
-        return; // 성공(또는 비-429) → 종료
-      }
-      let waitMs = 1000;
-      try {
-        const j = JSON.parse(res.getContentText());
-        if (j && j.retry_after) {
-          waitMs = Math.ceil(Number(j.retry_after) * 1000) + 150; // retry_after(초) → ms
-        }
-      } catch (e) {
-        waitMs = 1000;
-      }
-      Utilities.sleep(Math.min(waitMs, 5000));
-    } catch (err) {
-      console.warn(`Discord 알림 실패: ${err.message}`);
-      return;
-    }
-  }
-}
+// Slack 알림 / 배치 트리거 예약은 Notify.js 로 분리됨.

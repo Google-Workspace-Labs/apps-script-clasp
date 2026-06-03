@@ -1,28 +1,41 @@
 # Kingshot Coupon Automation
 
-Google Sheets에 입력한 유저(fid)와 쿠폰 코드를 기반으로, Google Apps Script가 Kingshot
-기프트코드 API를 **순수 HTTP**로 호출해 쿠폰을 자동 등록하는 시스템.
-
-브라우저 자동화(Playwright/Puppeteer)나 OCR을 사용하지 않는다. (킹샷은 캡차 미요구 가정)
+Google Sheets + Apps Script + Web App 로 Kingshot 기프트코드를 **순수 HTTP**(공식
+API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동 등록하는 시스템.
+공개 웹 UI 에서 멤버가 셀프 등록하고, 관리자는 토글/삭제/TTL 을 같은 화면에서
+제어한다. 알림은 **Slack 단일 채널** (Discord 는 GAS IP Cloudflare 차단 이슈로 제거).
 
 ## 파일 구조
 
-| 파일 | 역할 |
-| --- | --- |
-| `Code.js` | onOpen 메뉴, 배치(`runCouponBatch`), 단일 테스트, `setupSheets`, 시트 I/O |
-| `Api.js` | `loginPlayer`, `redeemCoupon`, 재시도, 응답 분류 (`UrlFetchApp`) |
-| `Sign.js` | `md5Hex`, `generateSign` (sign 생성 알고리즘) |
-| `Config.js` | SALT / BASE_URL / 시트명 / 지연·재시도 설정 (`getConfig`) |
+| 파일              | 역할                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `Code.js`         | 메뉴(`onOpen`+Quick Setup), 배치(`runCouponBatch`), 시트 I/O 헬퍼(`COL`/`getSheet_`) |
+| `Api.js`          | `loginPlayer`, `redeemCoupon`(+재시도), 응답 분류 (`UrlFetchApp`)                    |
+| `Sign.js`         | `md5Hex`, `generateSign` (sign 생성, signed-byte 보정)                               |
+| `Config.js`       | SALT/URL/시트명/지연·재시도/정원/TTL/Slack 설정 (요청 단위 캐시 포함)                |
+| `Registration.js` | 웹앱 (`doGet`/api\*), 관리 액션 (등록·토글·삭제·TTL·Slack 설정)                      |
+| `Notify.js`       | Slack 알림 (`notify_` dispatcher · 카테고리 게이트), 배치 트리거 예약                |
+| `index.html`      | 웹 UI (등록·관리, 모바일 대응, 토글 슬라이더, 도움말 프롬프트)                       |
 
 ## 시트 구조
 
-- **users** : `fid | nickname | active` — `active=TRUE` 인 유저만 대상
-- **coupons** : `code | enabled` — `enabled=TRUE` 인 쿠폰만 대상
-- **logs** : `time | fid | code | result | message` — 실행 결과 기록
+| 시트          | 컬럼                                        | 비고                         |
+| ------------- | ------------------------------------------- | ---------------------------- |
+| `users`       | fid · nickname · active · created · updated | `active=TRUE` 만 배치 대상   |
+| `coupons`     | code · enabled · status · created · updated | `enabled=TRUE` 만 대상       |
+| `logs`        | time · fid · code · result · message        | dedup 원천 (자동 기록)       |
+| `system_logs` | time · level · source · message · target    | 진단 로그 (1000행 자동 회전) |
 
-`result` 값: `SUCCESS`, `ALREADY_USED`, `INVALID_CODE`, `EXPIRED`, `RATE_LIMITED`,
-`CAPTCHA_REQUIRED`, `INVALID_FID`, `ERROR`. 이 중 `SUCCESS`/`ALREADY_USED` 조합은
-다음 실행에서 자동으로 건너뛴다(중복 요청 방지).
+`result` 값: `SUCCESS`, `ALREADY_USED`, `INVALID_CODE`, `EXPIRED`, `EXPIRED_AGE`,
+`RATE_LIMITED`, `CAPTCHA_REQUIRED`, `INVALID_FID`, `ERROR`. `SUCCESS`/`ALREADY_USED`
+조합은 다음 실행에서 자동 skip (중복 요청 방지).
+
+`status` 값(coupons):
+
+- `VALID`/`PENDING` — 살아있는 코드 (enabled=TRUE, 배치 대상)
+- `EXPIRED`/`INVALID_CODE`/`EXPIRED_AGE` — 죽은 코드 (enabled=FALSE, 배치 skip)
+  - 등록 시 단건 검증으로 즉시 감지 + 시트 기록 (dead code 캐시 → 재시도 차단)
+  - 또는 배치 중 발견 시 자동 비활성화 + `logs` 행 purge
 
 ## sign 생성
 
@@ -30,51 +43,228 @@ Google Sheets에 입력한 유저(fid)와 쿠폰 코드를 기반으로, Google 
 sorted("key=value&...")  +  SALT   →   MD5(hex)
 ```
 
-- 키 알파벳순 정렬, `captcha_code` 는 빈 값으로 포함
-- ⚠️ `computeDigest` 의 signed byte 를 `(b & 0xff)` 보정 + 2자리 zero-pad (`Sign.js`)
-- ⚠️ SALT 는 운영사가 교체 가능 → `Config.js` 의 `DEFAULT_SALT` 또는 Script Property
-  `KINGSHOT_SALT` 로 덮어쓴다.
+- 키 알파벳순 정렬, `captcha_code` 빈 값 포함 (킹샷은 캡차 미요구 가정)
+- ⚠️ `computeDigest` 의 signed byte 를 `(b & 0xff)` 보정 + 2자리 zero-pad
+- SALT 교체 시 `Config.js` `DEFAULT_SALT` 또는 Script Property `KINGSHOT_SALT`
 
-## 셋업
+## 🪄 시트 복사받은 사람용 (비개발자 가이드)
 
-이 프로젝트는 스프레드시트에 연결된 **container-bound** 스크립트다.
+> 동료가 만든 👑 Kingshot Bot 시트를 카피해서 그대로 쓰고 싶을 때.
 
-1. 새 Google Sheets 생성 → **확장 프로그램 → Apps Script**
-2. 스크립트 ID 와 스프레드시트 ID 확인:
-   - 스크립트 ID: Apps Script 편집기 → 프로젝트 설정 → 스크립트 ID
-   - 스프레드시트 ID: 시트 URL 의 `/d/<여기>/edit`
-3. `.clasp.json` 의 `scriptId` 채우기 + `parentId` 추가:
+**복사 → 📖 시작하기 시트 안내대로 → 끝.** 코딩 지식 X.
+
+1. **시트 복사** — 원본 시트 메뉴 `파일 ▸ 사본 만들기` (Apps Script 포함되어 복사됨)
+2. **첫 오픈** — 복사한 시트를 열면 **`📖 시작하기`** 탭이 자동으로 보임
+3. **가이드 따라하기** — 그 탭 안의 1단계·2단계 그대로 진행
+   - 1단계: `🚀 Setup ▸ Setup Sheets` 클릭 → 권한 동의 → 시트 4개 생성
+     - ⚠️ "Google에서 확인하지 않은 앱" 경고가 떠도 정상:
+       `[고급] ▸ [Kingshot Coupon(으)로 이동(안전하지 않음)] ▸ [모두 선택] ▸ [계속]`
+     - "안전하지 않음" 은 Google 미인증 표기일 뿐 — 코드는 안전
+   - 2단계: `🚀 Setup ▸ Quick Setup` → 모달의 `▶ Apps Script 에디터 열기` →
+     에디터 우측 상단 `배포 ▸ 새 배포` → `⚙️ 유형 ▸ 웹 앱` →
+     실행: **나**, 액세스: **모든 사용자** → `배포` → `액세스 승인`
+     (권한 절차는 1단계 ⓐⓑⓒ 동일) → 나오는 `/exec` URL **[복사]** → 브라우저로 접속 확인
+   - `/exec` 의 **🛠 관리** 패널에서 설정 변경(Slack · TTL 등) 은 🔑 비밀번호(오늘 MMDD 4자리) 필요
+4. **(완료 후) 가이드 시트 정리** — 안 필요하면 탭 우클릭 `Delete sheet` 로 삭제해도 OK
+
+> 💡 막히면 언제든 `👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup` 다시 열기.
+
+### 📤 배포자 가이드 (시트를 멤버에게 공유하는 사람용)
+
+**배포 전 1회 셋업:**
+
+1. 빈 Google Sheets 생성 + Apps Script 코드 push
+2. 시트 열기 → 메뉴 노출 확인
+3. `👑 Kingshot Bot ▸ 🚀 Setup ▸ 📖 시작하기 시트 생성 (배포자 1회)` 클릭
+   - 권한 동의창 → 모든 권한 허용
+   - leftmost 위치에 `📖 시작하기` 탭 생성됨 + 자동 활성화
+4. (선택) `Setup Sheets` 도 실행해 시트 4개 미리 만들어 두기
+5. **`📖 시작하기` 탭을 활성 상태로 둔 채** 시트 공유/카피 권한 부여
+   - 멤버가 카피하면 카피본도 동일하게 `📖 시작하기` 가 첫 활성 탭
+
+이렇게 해두면 멤버는 카피 → 열기만 해도 즉시 가이드를 보게 되어, "뭐 부터 해야 하지?" 헤맬 일 없음.
+
+---
+
+## 셋업 (개발자/clasp 사용 시)
+
+container-bound 스크립트 (스프레드시트에 연결).
+
+1. 새 Google Sheets 생성 → 확장 프로그램 → Apps Script
+2. `.clasp.json` 에 `scriptId` + `parentId` 채우기
    ```json
-   {
-     "scriptId": "<스크립트 ID>",
-     "rootDir": "",
-     "parentId": "<스프레드시트 ID>"
-   }
+   { "scriptId": "<...>", "rootDir": "", "parentId": "<스프레드시트 ID>" }
    ```
-   > clasp clone 으로 가져온 경우 `parentId` 가 누락되므로 수동으로 추가한다(레포 트러블슈팅 참고).
-4. 업로드 & 시트 초기화:
+3. 업로드
    ```bash
    cd projects/kingshot-coupon
    clasp push
-   # 시트 새로고침 → 상단 메뉴 [Kingshot Bot ▸ Setup Sheets]
+   # 시트 새로고침 → 메뉴 [🚀 Setup ▸ Setup Sheets] 클릭 → 권한 동의 → 시트 4개 생성
    ```
-5. (선택) SALT 교체 시: Apps Script → 프로젝트 설정 → 스크립트 속성 → `KINGSHOT_SALT`
+4. **웹앱 배포**: 에디터 → Deploy ▸ New deployment ▸ Web app
+   (Execute as: Me / Access: Anyone) → `/exec` URL 공유
+5. (선택, 멤버에게 공유 예정이면) `🚀 Setup ▸ 📖 시작하기 시트 생성` 클릭 →
+   leftmost 에 onboarding 가이드 탭 생성 후 활성 상태로 두고 공유
+6. (선택) Script Properties 설정 — 아래 참고
 
-## 실행
+## 메뉴 (시트) — `👑 Kingshot Bot` 하위 4그룹
 
-1. **(실측 먼저)** `Kingshot Bot ▸ Test Single Coupon` 으로 본인 fid + 유효 쿠폰 1건 검증
-   → salt / 2단계 로그인 필요 여부 / 응답 코드 매핑 확인
-2. `users`, `coupons` 시트 입력
-3. `Kingshot Bot ▸ Run Coupon Batch` 실행 → `logs` 확인
+| 그룹     | 항목                          | 동작                                                      |
+| -------- | ----------------------------- | --------------------------------------------------------- |
+| 🚀 Setup | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)           |
+|          | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)         |
+|          | 📖 시작하기 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성 |
+| ▶ 실행   | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)               |
+|          | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)             |
+| 🛠 관리  | Deactivate User / Delete User | fid 입력 → 비활성/삭제 (시트편집자만, 비밀번호 X)         |
+|          | Clean Duplicate Users         | users 시트 fid 중복 row 정리 (첫 등장만 보존)             |
+|          | Clean Expired Logs            | 죽은 코드(`EXPIRED`/`INVALID_CODE`)의 로그 일괄 정리      |
+|          | Clear System Logs             | `system_logs` 비우기                                      |
+| 🔍 진단  | Diagnose Dedup                | logs 시트 dedup 누수 진단 (strict/case/trim/type 변형 비교) |
+
+## 웹 UI (`/exec`)
+
+3개 카드 + 게임풍 베이지 톤:
+
+- **👤 유저 등록** — fid 입력 → `조회`로 닉네임·레벨·왕국·아바타 확인 → 우측 `등록`
+  버튼으로 연속 등록 (이미 등록된 ID 는 `등록됨` 상태로 비활성)
+- **🎁 쿠폰 등록** — 코드 입력 → 검증(login+redeem 1회) → 결과별:
+  - **유효** → 추가 + 배치 예약 (debounce 30s)
+  - **없음/만료** → 시트에 `enabled=FALSE` + `INVALID_CODE`/`EXPIRED` 로 기록 →
+    같은 코드 재시도 시 **API 호출 없이 1ms 만에 차단**(dead code 캐시)
+  - **캐시 히트(이미 등록 또는 죽은 것으로 확인됨)** → 즉시 사유별 메시지 (API 0회)
+- **🛠 관리** — 기본 열림(목록은 비밀번호 없이 조회), **변경/삭제·즉시 실행만 비밀번호**(오늘 MMDD 4자리)
+  - 🔑 비밀번호 입력 (4자리 마스킹)
+  - ⏳ 쿠폰 자동만료(TTL) 일수 설정·저장
+  - ⚡ **즉시 배치 실행** — 비밀번호 + 한 클릭 → 약 30초 뒤 배치 동작 (마지막 배치 시각 인라인 표시)
+  - 💬 Slack 알림 슬라이더(on/off) + Webhook URL 저장 + 도움말(GPT 프롬프트 복사)
+  - 👤 유저 목록 (활성/비활성 카운트, 슬라이더 토글, 삭제) — 활성 먼저 정렬
+  - 🎁 쿠폰 목록 (코드 · 등록시각, 슬라이더 토글) — 활성 먼저 → 최신순
+  - 각 헤더 우측에 마지막 사용시각 표시 (`🕒 yyyy-MM-dd HH:mm`)
+
+UI 액션 후 목록·카운트·시각은 자동 갱신됨.
+
+## 알림 — Slack 단일 채널 + 5개 카테고리 토글
+
+**왜 Slack 만?** GAS 공유 IP 는 Discord Cloudflare 에 _지속적으로 차단_ 받음
+(429 + cf-ray 헤더 + X-RateLimit-Scope 없음 = IP 평판 문제). 알림 누락 빈도 높아
+운영 불가. Slack 은 인프라(AWS) 가 달라 같은 IP 평판 영향 거의 없음 — 검증 완료
+후 Discord 코드/UI 모두 제거.
+
+**Slack 호환 노트:**
+
+- Akamai CDN (`akamaized.net`) URL 은 Slack 의 legacy `thumb_url` proxy 가 fetch 못함
+- → 아바타는 `image_url` (하단 인라인 큰 이미지) 로 전송
+- 닉네임 줄에 🏷️ 이모지 prefix 로 시각 강조 (`🏷️ *닉네임*`)
+- 마크다운: 내부 embed 의 `**bold**` → Slack `*bold*` 자동 변환 (`mrkdwn_in` 활성화)
+- attachment legacy 필드만 사용 (Block Kit `blocks` 와 혼용 시 `invalid_attachments` 거부됨)
+
+관리 UI 에서 Slack Webhook URL + ON/OFF 토글.
+
+배치/설정 이벤트 시 `notify_(embed, target, category)` dispatcher 가 활성화된 채널 모두 호출.
+
+### 카테고리별 ON/OFF (관리 UI 5개 슬라이더)
+
+채널이 ON 이어도 카테고리 OFF 면 해당 이벤트는 전송 X. 5개 모두 기본 ON
+(opt-out) — 처음 전부 켜고 시작 → 노이즈 느끼는 항목만 OFF 로 자기 운영 스타일에 맞춤.
+
+| 카테고리     | 기본 | 포함 이벤트                                                |
+| ------------ | ---- | ---------------------------------------------------------- |
+| 🎁 배치 결과 | ON   | 배치 완료 (성공/실패/스킵/대상 통계 + 색상 사이드바)       |
+| ⏱ 배치 예약  | ON   | 쿠폰/유저 등록·수동 버튼 → "N초 뒤 배치 예약" 안내         |
+| 👤 유저 변경 | ON   | 등록 (닉네임/ID/카운트 + 아바타 썸네일) · 삭제 · 활성 토글 |
+| 🎟 쿠폰 변경 | ON   | 등록 (VALID/EXPIRED/INVALID_CODE 분기) · 활성 토글         |
+| ⚙️ 설정 변경 | ON   | TTL 변경 · Slack URL/토글                                  |
+
+채널 자체의 테스트/ON/OFF 메시지(`✅ 연동 완료` 등) 는 카테고리 게이트 무시 — 채널 검증 목적.
+
+### 알림 누락 시 진단 (GAS 공유 IP rate limit)
+
+Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지만 안전망 적용.
+
+**429 대응 정책** (실측 기반, 무지성 재시도 회피):
+
+- **Cloudflare 차단 (cf-ray 있음)** — IP 평판 문제, 재시도 의미 없음 → **재시도 0회**
+- **긴 retry-after (>20초)** — 서버가 "오래 기다려" 라고 했는데 10초 캡 안에선
+  어차피 또 429 → **재시도 0회**
+- **짧은 throttle** (per-webhook rate limit 등) → 최대 5회 재시도
+  (`retry_after` 헤더 존중, 캡 10초)
+
+`system_logs` 시트 `slack` source 행에서 시도별 HTTP 코드 + 429 시 헤더
+(`retry-after`/`cf-ray`) 진단 가능. Cloudflare 차단/긴 retry-after 케이스는
+포기 사유까지 명시적으로 기록됨.
+
+누락 사례가 잦으면: ① 등록 burst 줄이기 ② egress 를 GAS 밖(전용 IP 프록시)으로
 
 ## 동작 메모
 
-- 요청 간 2.5초 지연(`requestDelayMs`), `TIMEOUT RETRY` 시 백오프 재시도(`maxRetries`)
-- **GAS 6분 실행 제한**: `유저수 × 쿠폰수` 가 약 140건을 넘으면 시간초과로 안전 중단됨.
-  이미 처리분은 `logs` 에 남으므로 **다시 실행하면 이어서 진행**된다.
-- `KINGSHOT_VERIFY_PLAYER='false'` 로 fid 사전 로그인 검증을 끌 수 있다(실측 후 불필요하면).
+- 요청 간 `requestDelayMs` (기본 2.5s) **+ jitter [-500, +1500ms]** = 실제 2.0~4.0s
+  랜덤 간격 → 정확한 2.5s 패턴이 anti-bot 탐지에 잡히지 않게 흐림. 백오프(`TIMEOUT RETRY`/`429`)는
+  시간 정확성 위해 jitter 제외
+- **GAS 6분 실행 제한 + 자동 이어실행**: `유저수 × 쿠폰수 × 2.5초` 가 약 5분 넘으면
+  안전 중단 → **1분 뒤 자동으로 트리거 재예약**. 이미 처리분은 `logs` 의 dedup 으로 SKIP,
+  남은 조합만 다음 세션에서 호출. 100명/300조합 같은 큰 배치도 사용자 액션 없이 끝까지 완료
+- **쿠폰 TTL**: 등록 후 N일(기본 7) 지난 enabled 쿠폰은 배치 시작 시 API 호출 없이
+  `EXPIRED_AGE` 처리 + 로그 purge
+- **사전 dedup 체크 (verifyPlayer 보호)**: 배치 루프 시작 시 _이 유저가 처리할
+  조합이 하나라도 있는지_ 먼저 확인. 모두 dedup 에 있으면 `loginPlayer` 자체를 안 부름
+  → 불필요한 IP rate limit 부담 + logs 노이즈 (RATE_LIMITED 잔재) 제거
+- **Dead code 캐시**: 단건 검증에서 `EXPIRED`/`INVALID_CODE` 응답 받은 코드는 시트에
+  `enabled=FALSE` 로 기록해 **같은 코드 재시도를 API 호출 없이 1ms 만에 차단**.
+  여러 멤버가 같은 만료 코드를 시도해도 킹샷 API 호출은 최초 1회뿐 → GAS 공유 IP
+  rate limit 부담 ↓. 시트의 dead row 는 `enabled=FALSE` 라 배치에서도 자동 skip,
+  UI 관리 패널에선 활성 코드 뒤로 정렬되어 노출 ↓
+- **유저 정원**: `KINGSHOT_MAX_USERS` (기본 100, 0=무제한). 신규 등록 시만 적용
+- **동시성**: 등록/관리 액션은 `safeApiWithLock_` 헬퍼로 `LockService` 직렬화 (race 방지).
+  배치는 `tryLock(0)` 으로 단일 실행 보장 + debounce
+- **자동 배치 예약 정책** (`requestBatch_(delayMs)` 의 debounce 시간):
+  - **쿠폰 등록 → 30s**
+  - **유저 등록 → 180s (3분)**
+  - **수동 즉시 실행 → 30s**
+  - **시간 초과 이어실행 → 60s** (5분 한도 도달 후 자동 재예약)
+  - **RATE_LIMITED 자동 재시도 → 180s (3분), 최대 3회** (warn>0 감지 시)
+  - 같은 핸들러 트리거가 이미 있으면 **항상 가장 짧은 게 이김** —
+    유저(180s) 예약된 상태에서 쿠폰(30s) 들어오면 30s 로 단축. 자연스럽게 합쳐짐
+- **RATE_LIMITED 자동 N차 재시도** (운영 자동화):
+  - 배치 종료 시 `stats.warn > 0` (rate limit/CAPTCHA/ERROR 감지) → 3분 cool-down 후
+    자동 재시도 (`BATCH_RL_RETRY_COUNT` Script Property 로 카운터 관리)
+  - 최대 3회 재시도 후에도 warn>0 이면 → 카운터 리셋 + 임베드 footer 에
+    "🚫 3회 재시도 후 X건 영구 차단 — 수동 확인 필요" 명시 (사람 개입 신호)
+  - warn=0 으로 회복하면 → 카운터 리셋 + footer 에 "✅ 자동 재시도 N회 만에 회복"
+  - 별도 알림 카테고리 없음 — 기존 `batch` 카테고리 토글로 통합 관리 (footer 한 줄로 단계 표시)
+- **마지막 배치 시각**: `LAST_BATCH_AT` Script Property 에 KST 시각 자동 기록 →
+  관리 UI 의 "⚡ 즉시 배치 실행" 옆 인라인 표시 (시트 안 봐도 신선도 판단 가능)
+- **배치 트리거 청소**: `runCouponBatch` 종료 시 `removeTriggers_('runCouponBatch')`
+  호출 → GAS 콘솔에 '사용 중지됨' 트리거 누적 안 됨 (lock 보유 중 처리해 race-safe)
 
-## 주의
+## Script Properties (선택)
 
-- 개인 자동화 용도. API 는 비공식이며 운영사가 스펙(엔드포인트·salt)을 변경할 수 있다.
-- `.clasprc.json`(개인 OAuth 토큰)은 절대 커밋 금지.
+| 키                         | 기본                                        | 설명                                            |
+| -------------------------- | ------------------------------------------- | ----------------------------------------------- |
+| `KINGSHOT_SALT`            | (코드 기본값)                               | sign salt 교체                                  |
+| `KINGSHOT_BASE_URL`        | `https://kingshot-giftcode.centurygame.com` | API 베이스                                      |
+| `KINGSHOT_VERIFY_PLAYER`   | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔            |
+| `KINGSHOT_MAX_USERS`       | `100`                                       | 유저 등록 정원 (0=무제한)                       |
+| `KINGSHOT_COUPON_TTL_DAYS` | `7`                                         | 쿠폰 자동만료 일수 (0=끔)                       |
+| `KINGSHOT_VALIDATE_FID`    | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                              |
+| `SLACK_WEBHOOK_URL`        | —                                           | Slack 웹훅 URL (UI에서 저장 가능)               |
+| `SLACK_ENABLED`            | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)      |
+| `NOTIFY_BATCH`             | (true)                                      | 카테고리: 배치 결과 (기본 ON)                   |
+| `NOTIFY_SCHEDULE`          | (true)                                      | 카테고리: 배치 예약 (기본 ON)                   |
+| `NOTIFY_USER`              | (true)                                      | 카테고리: 유저 변경 (기본 ON)                   |
+| `NOTIFY_COUPON`            | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                   |
+| `NOTIFY_SETTINGS`          | (true)                                      | 카테고리: 설정 변경 (기본 ON)                   |
+| `LAST_MANAGE_AT`           | —                                           | 자동 기록 (관리 헤더 표시용)                    |
+| `LAST_BATCH_AT`            | —                                           | 자동 기록 (마지막 배치 시각, 관리 UI 표시)      |
+| `BATCH_RL_RETRY_COUNT`     | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3) |
+
+## 알려진 제약 / 주의
+
+- **GAS 공유 IP 차단**: 킹샷 API 도 비슷한 IP throttle 가능 (대량 등록 시 429 누적).
+  소규모면 무방, 대규모/정기면 egress 를 GAS 밖(Cloud Run 등)으로 이전이 정답
+- **웹앱 재배포 필요**: 코드 변경 시 `/exec` 에 반영하려면 Deploy ▸ Manage
+  deployments ▸ Edit ▸ New version. 트리거/배치는 재배포 없이 즉시 반영
+- **공개 링크 + 비밀번호 = 약한 보호**: MMDD(366가지)는 사실상 추측 가능 — "장난 방지"
+  수준. 강한 보호 필요하면 Script Property 비밀키로 교체
+- API 는 비공식, 운영사가 스펙(엔드포인트/salt) 변경 가능
+- `.clasprc.json` 은 절대 커밋 금지 (`.gitignore` 처리됨)
