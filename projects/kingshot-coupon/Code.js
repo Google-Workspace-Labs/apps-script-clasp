@@ -97,7 +97,13 @@ function onOpen() {
     .addItem('Clean Duplicate Users', 'cleanDuplicateUsers')
     .addSeparator()
     .addItem('Clean Expired Logs', 'cleanExpiredLogs')
+    .addItem('Clean Invalid Coupons (오타 코드)', 'cleanInvalidCoupons')
     .addItem('Clear System Logs', 'clearSystemLogs');
+
+  const syncMenu = ui
+    .createMenu('🔄 동기화')
+    .addItem('지금 동기화 (1회)', 'menuRunSyncNow')
+    .addItem('자동 동기화 ON/OFF', 'menuToggleAutoSync');
 
   const diagMenu = ui.createMenu('🔍 진단').addItem('Diagnose Dedup', 'diagnoseDedup');
 
@@ -105,6 +111,7 @@ function onOpen() {
     .addSubMenu(setupMenu)
     .addSubMenu(runMenu)
     .addSubMenu(manageMenu)
+    .addSubMenu(syncMenu)
     .addSubMenu(diagMenu)
     .addToUi();
 }
@@ -832,6 +839,35 @@ function cleanExpiredLogs() {
 }
 
 /**
+ * 메뉴: 존재하지 않는(오타) 코드 정리 — coupons 시트의 INVALID_CODE 행 삭제(+로그 정리).
+ * EXPIRED 는 건드리지 않음(이력 보존). 소스에 남아있는 오타는 다음 동기화에 재검증될 수 있음.
+ */
+function cleanInvalidCoupons() {
+  const ui = SpreadsheetApp.getUi();
+  const res = purgeInvalidCoupons_();
+  if (res.coupons === 0) {
+    ui.alert(
+      '🗑 오타 코드 정리',
+      '정리할 INVALID(존재하지 않는) 코드가 없습니다.',
+      ui.ButtonSet.OK,
+    );
+    return;
+  }
+  logSystem_(
+    'INFO',
+    'coupon-clean-invalid',
+    `manual via menu — INVALID ${res.coupons}건 삭제 (${res.codes.join(', ')}), logs ${res.logs}건`,
+    res.codes.join(','),
+  );
+  ui.alert(
+    '🗑 오타 코드 정리',
+    `존재하지 않는 코드 ${res.coupons}건 삭제\n🧹 관련 logs ${res.logs}건 정리\n코드: ${res.codes.join(', ')}\n\n` +
+      `⚠️ 소스에 아직 있는 코드는 다음 동기화 때 1회 재검증 후 재생성될 수 있습니다(UI 엔 숨김).`,
+    ui.ButtonSet.OK,
+  );
+}
+
+/**
  * system_logs 시트에 1줄 기록 (없으면 자동 생성, 1000행 초과 시 오래된 100행 자동 회전).
  * 진단용 — Apps Script Executions 안 열고 시트에서 바로 확인 가능. 로깅 실패는 조용히 무시.
  */
@@ -1180,6 +1216,50 @@ function purgeLogsForCode_(code) {
 }
 
 /**
+ * coupons 시트에서 status 가 INVALID_CODE 인 (존재하지 않는 = 오타) 행을 전부 제거한다.
+ * EXPIRED/EXPIRED_AGE 는 보존 — 한때 유효했던 이력이라 UI 에도 계속 노출. INVALID_CODE 만 대상.
+ * 각 코드의 logs 행도 함께 정리. clearContents+setValues 패턴(인덱스 안 꼬임).
+ * ⚠️ 소스에 아직 남아있는 오타는 다음 동기화 때 1회 재검증 후 재생성될 수 있음(단 UI 엔 숨김).
+ * @returns {{coupons:number, logs:number, codes:string[]}}
+ */
+function purgeInvalidCoupons_() {
+  const sheet = getSheet_('coupons');
+  if (!sheet) {
+    return { coupons: 0, logs: 0, codes: [] };
+  }
+  const values = sheet.getDataRange().getValues();
+  if (values.length <= 1) {
+    return { coupons: 0, logs: 0, codes: [] };
+  }
+  const codeIdx = COL.coupons.code - 1;
+  const statusIdx = COL.coupons.status - 1;
+  const kept = [values[0]]; // 헤더 유지
+  const removedCodes = [];
+  for (let i = 1; i < values.length; i++) {
+    const code = values[i][codeIdx];
+    const status = String(values[i][statusIdx] || '')
+      .trim()
+      .toUpperCase();
+    if (code !== '' && code !== null && status === 'INVALID_CODE') {
+      removedCodes.push(String(code).trim());
+    } else {
+      kept.push(values[i]); // INVALID 아닌 행(빈 행 포함)은 그대로 보존
+    }
+  }
+  if (removedCodes.length === 0) {
+    return { coupons: 0, logs: 0, codes: [] };
+  }
+  sheet.clearContents();
+  sheet.getRange(1, 1, kept.length, values[0].length).setValues(kept);
+
+  let logsRemoved = 0;
+  for (const code of removedCodes) {
+    logsRemoved += purgeLogsForCode_(code);
+  }
+  return { coupons: removedCodes.length, logs: logsRemoved, codes: removedCodes };
+}
+
+/**
  * 특정 fid 의 logs 행을 전부 제거한다 (유저 삭제 시 호출).
  * dedup 영향: 삭제된 유저는 batch 대상이 아니므로 dedup 손실 영향 없음.
  *   같은 fid 재등록 시: 첫 배치에서 API 가 ALREADY_USED 응답 → dedup 자동 복구 (일회성 비용).
@@ -1509,7 +1589,7 @@ function getValidateFid_() {
 // ============================================================
 // TODO (향후 개선)
 // ============================================================
-// TODO: 자동 쿠폰 크롤링(공식/커뮤니티 소스)
 // TODO: 관리자 권한 분리 (Session.getEffectiveUser 기반)
+// (DONE: 자동 쿠폰 동기화(커뮤니티 소스 kingshotdata.kr) — Sync.js, 옵션 레이어/기본 OFF)
 // (DONE: Telegram → Slack 단일 채널로 정착)
 // (DONE: 대량 처리 자동 이어실행 — stoppedByTime 후 자동 재예약 + RATE_LIMITED 자동 N차 재시도)

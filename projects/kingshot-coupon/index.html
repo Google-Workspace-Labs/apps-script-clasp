@@ -565,6 +565,24 @@
             </button>
           </div>
 
+          <!-- 🔄 자동 쿠폰 동기화 (옵션 · 기본 OFF) -->
+          <div class="srow-head" style="margin-top: 14px">
+            <span class="slabel" style="margin: 0"
+              >🔄 자동 쿠폰 동기화
+              <span class="shint">커뮤니티 소스에서 신규 쿠폰 6시간마다 자동 등록</span></span
+            >
+            <label class="switch">
+              <input id="syncSwitch" type="checkbox" onchange="toggleAutoSync(this)" />
+              <span class="track"></span>
+            </label>
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <button class="btn-sec sbtn" style="width: 100%" onclick="runSyncNow()">
+              지금 동기화 (1회)
+            </button>
+          </div>
+          <div id="syncLast" class="shint" style="margin-top: 4px">아직 실행 안 됨</div>
+
           <!-- 💬 Slack 알림 -->
           <div class="srow-head">
             <span class="slabel" style="margin: 0"
@@ -619,6 +637,7 @@
 
         <div id="couponsTitle" class="msection-title">쿠폰 목록</div>
         <div id="couponList" class="mlist"></div>
+        <div id="invalidChip" class="shint" style="display: none; margin-top: 6px"></div>
 
         <div id="mgResult" class="result"></div>
       </div>
@@ -807,6 +826,7 @@
               $('ttlInput').value = res.ttlDays;
               renderUsers(res.users);
               renderCoupons(res.coupons);
+              renderInvalidChip(res.invalidHiddenCount || 0);
               $('userTs').textContent = res.lastUserReg ? '🕒 ' + res.lastUserReg : '';
               $('couponTs').textContent = res.lastCouponReg ? '🕒 ' + res.lastCouponReg : '';
               $('manageTs').textContent = res.lastManage ? '🕒 ' + res.lastManage : '';
@@ -984,8 +1004,74 @@
       function updateChannelUI(res) {
         $('slSwitch').checked = !!res.slackEnabled;
         $('slStatus').textContent = res.slackSet ? '' : '· URL 미설정';
+        // 자동 쿠폰 동기화 상태
+        $('syncSwitch').checked = !!res.autoSyncEnabled;
+        $('syncLast').textContent = res.lastSync
+          ? '마지막: ' + res.lastSync + (res.lastSyncResult ? ' · ' + res.lastSyncResult : '')
+          : '아직 실행 안 됨';
         // 알림 카테고리 토글 렌더
         renderNotifyRows(res.notify || {});
+      }
+
+      function toggleAutoSync(cb) {
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res || !res.ok) {
+              cb.checked = !cb.checked;
+              mgFlash((res && res.message) || '실패');
+              return;
+            }
+            mgFlash(res.message);
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            cb.checked = !cb.checked;
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiSetAutoSync(cb.checked, mgPw());
+      }
+
+      function runSyncNow() {
+        mgFlash('🔄 동기화 중…');
+        google.script.run
+          .withSuccessHandler(function (res) {
+            mgFlash((res && res.message) || '완료');
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiRunSyncNow(mgPw());
+      }
+
+      // 존재하지 않는(오타) 코드 — 목록에선 숨기고 개수 칩 + 정리 버튼만 표시
+      function renderInvalidChip(n) {
+        const el = $('invalidChip');
+        if (!n) {
+          el.style.display = 'none';
+          el.innerHTML = '';
+          return;
+        }
+        el.style.display = 'block';
+        el.innerHTML =
+          '🗑 존재하지 않는 코드 ' +
+          n +
+          '개 (숨김) ' +
+          '<button class="btn-sec sbtn" style="padding: 2px 10px; margin-left: 6px" ' +
+          'onclick="cleanInvalid()">정리</button>';
+      }
+
+      function cleanInvalid() {
+        mgFlash('🗑 정리 중…');
+        google.script.run
+          .withSuccessHandler(function (res) {
+            mgFlash((res && res.message) || '완료');
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiCleanInvalidCoupons(mgPw());
       }
 
       // ── 알림 카테고리 5개 렌더 ──
@@ -995,6 +1081,7 @@
         { key: 'user', label: '👤 유저 변경', hint: '등록·삭제·활성 토글' },
         { key: 'coupon', label: '🎟 쿠폰 변경', hint: '등록(거부/만료/정상)·활성 토글' },
         { key: 'settings', label: '⚙️ 설정 변경', hint: 'TTL · Slack 토글' },
+        { key: 'sync', label: '🔄 자동동기화', hint: '쿠폰 소스 동기화·오류' },
       ];
 
       function renderNotifyRows(notify) {

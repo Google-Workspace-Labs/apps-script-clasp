@@ -15,6 +15,7 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 | `Config.js`       | SALT/URL/시트명/지연·재시도/정원/TTL/Slack 설정 (요청 단위 캐시 포함)                |
 | `Registration.js` | 웹앱 (`doGet`/api\*), 관리 액션 (등록·토글·삭제·TTL·Slack 설정)                      |
 | `Notify.js`       | Slack 알림 (`notify_` dispatcher · 카테고리 게이트), 배치 트리거 예약                |
+| `Sync.js`         | 외부 쿠폰 소스 자동 동기화 (옵션 레이어 · 기본 OFF · 6h 트리거 · 전부 try/catch)     |
 | `index.html`      | 웹 UI (등록·관리, 모바일 대응, 토글 슬라이더, 도움말 프롬프트)                       |
 
 ## 시트 구조
@@ -36,6 +37,8 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 - `EXPIRED`/`INVALID_CODE`/`EXPIRED_AGE` — 죽은 코드 (enabled=FALSE, 배치 skip)
   - 등록 시 단건 검증으로 즉시 감지 + 시트 기록 (dead code 캐시 → 재시도 차단)
   - 또는 배치 중 발견 시 자동 비활성화 + `logs` 행 purge
+- **UI 노출 정책**: `EXPIRED`/`EXPIRED_AGE`(한때 유효했던 이력)는 관리 목록에 노출,
+  `INVALID_CODE`(존재하지 않는 오타)는 **캐시로만 남기고 목록에서 숨김** (개수 칩 + 정리 버튼만 표시)
 
 ## sign 생성
 
@@ -107,20 +110,23 @@ container-bound 스크립트 (스프레드시트에 연결).
    leftmost 에 onboarding 가이드 탭 생성 후 활성 상태로 두고 공유
 6. (선택) Script Properties 설정 — 아래 참고
 
-## 메뉴 (시트) — `👑 Kingshot Bot` 하위 4그룹
+## 메뉴 (시트) — `👑 Kingshot Bot` 하위 5그룹
 
-| 그룹     | 항목                          | 동작                                                      |
-| -------- | ----------------------------- | --------------------------------------------------------- |
-| 🚀 Setup | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)           |
-|          | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)         |
-|          | 📖 시작하기 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성 |
-| ▶ 실행   | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)               |
-|          | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)             |
-| 🛠 관리  | Deactivate User / Delete User | fid 입력 → 비활성/삭제 (시트편집자만, 비밀번호 X)         |
-|          | Clean Duplicate Users         | users 시트 fid 중복 row 정리 (첫 등장만 보존)             |
-|          | Clean Expired Logs            | 죽은 코드(`EXPIRED`/`INVALID_CODE`)의 로그 일괄 정리      |
-|          | Clear System Logs             | `system_logs` 비우기                                      |
-| 🔍 진단  | Diagnose Dedup                | logs 시트 dedup 누수 진단 (strict/case/trim/type 변형 비교) |
+| 그룹      | 항목                          | 동작                                                        |
+| --------- | ----------------------------- | ----------------------------------------------------------- |
+| 🚀 Setup  | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)             |
+|           | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)           |
+|           | 📖 시작하기 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
+| ▶ 실행    | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)                 |
+|           | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)               |
+| 🛠 관리   | Deactivate User / Delete User | fid 입력 → 비활성/삭제 (시트편집자만, 비밀번호 X)           |
+|           | Clean Duplicate Users         | users 시트 fid 중복 row 정리 (첫 등장만 보존)               |
+|           | Clean Expired Logs            | 죽은 코드(`EXPIRED`/`INVALID_CODE`)의 로그 일괄 정리        |
+|           | Clean Invalid Coupons         | 존재하지 않는(오타) `INVALID_CODE` 쿠폰 행 삭제(+로그)      |
+|           | Clear System Logs             | `system_logs` 비우기                                        |
+| 🔄 동기화 | 지금 동기화 (1회)             | 외부 소스 즉시 1회 동기화 (테스트·즉시 반영)                |
+|           | 자동 동기화 ON/OFF            | 6시간 주기 자동 동기화 토글 (트리거 설치/제거)              |
+| 🔍 진단   | Diagnose Dedup                | logs 시트 dedup 누수 진단 (strict/case/trim/type 변형 비교) |
 
 ## 웹 UI (`/exec`)
 
@@ -140,11 +146,13 @@ container-bound 스크립트 (스프레드시트에 연결).
   - 💬 Slack 알림 슬라이더(on/off) + Webhook URL 저장 + 도움말(GPT 프롬프트 복사)
   - 👤 유저 목록 (활성/비활성 카운트, 슬라이더 토글, 삭제) — 활성 먼저 정렬
   - 🎁 쿠폰 목록 (코드 · 등록시각, 슬라이더 토글) — 활성 먼저 → 최신순
+    (`INVALID_CODE` 오타 코드는 숨김 → 목록 아래 `🗑 존재하지 않는 코드 N개` 칩 + 정리 버튼)
+  - 🔄 자동 쿠폰 동기화 슬라이더(on/off) + `지금 동기화 (1회)` 버튼 + 마지막 동기화 결과
   - 각 헤더 우측에 마지막 사용시각 표시 (`🕒 yyyy-MM-dd HH:mm`)
 
 UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 
-## 알림 — Slack 단일 채널 + 5개 카테고리 토글
+## 알림 — Slack 단일 채널 + 6개 카테고리 토글
 
 **왜 Slack 만?** GAS 공유 IP 는 Discord Cloudflare 에 _지속적으로 차단_ 받음
 (429 + cf-ray 헤더 + X-RateLimit-Scope 없음 = IP 평판 문제). 알림 누락 빈도 높아
@@ -163,18 +171,19 @@ UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 
 배치/설정 이벤트 시 `notify_(embed, target, category)` dispatcher 가 활성화된 채널 모두 호출.
 
-### 카테고리별 ON/OFF (관리 UI 5개 슬라이더)
+### 카테고리별 ON/OFF (관리 UI 6개 슬라이더)
 
-채널이 ON 이어도 카테고리 OFF 면 해당 이벤트는 전송 X. 5개 모두 기본 ON
+채널이 ON 이어도 카테고리 OFF 면 해당 이벤트는 전송 X. 6개 모두 기본 ON
 (opt-out) — 처음 전부 켜고 시작 → 노이즈 느끼는 항목만 OFF 로 자기 운영 스타일에 맞춤.
 
-| 카테고리     | 기본 | 포함 이벤트                                                |
-| ------------ | ---- | ---------------------------------------------------------- |
-| 🎁 배치 결과 | ON   | 배치 완료 (성공/실패/스킵/대상 통계 + 색상 사이드바)       |
-| ⏱ 배치 예약  | ON   | 쿠폰/유저 등록·수동 버튼 → "N초 뒤 배치 예약" 안내         |
-| 👤 유저 변경 | ON   | 등록 (닉네임/ID/카운트 + 아바타 썸네일) · 삭제 · 활성 토글 |
-| 🎟 쿠폰 변경 | ON   | 등록 (VALID/EXPIRED/INVALID_CODE 분기) · 활성 토글         |
-| ⚙️ 설정 변경 | ON   | TTL 변경 · Slack URL/토글                                  |
+| 카테고리      | 기본 | 포함 이벤트                                                |
+| ------------- | ---- | ---------------------------------------------------------- |
+| 🎁 배치 결과  | ON   | 배치 완료 (성공/실패/스킵/대상 통계 + 색상 사이드바)       |
+| ⏱ 배치 예약   | ON   | 쿠폰/유저 등록·수동 버튼 → "N초 뒤 배치 예약" 안내         |
+| 👤 유저 변경  | ON   | 등록 (닉네임/ID/카운트 + 아바타 썸네일) · 삭제 · 활성 토글 |
+| 🎟 쿠폰 변경  | ON   | 등록 (VALID/EXPIRED/INVALID_CODE 분기) · 활성 토글         |
+| ⚙️ 설정 변경  | ON   | TTL 변경 · Slack URL/토글 · 자동 동기화 토글               |
+| 🔄 자동동기화 | ON   | 외부 소스 신규 쿠폰 발견·등록 요약 · fetch/스키마 오류     |
 
 채널 자체의 테스트/ON/OFF 메시지(`✅ 연동 완료` 등) 는 카테고리 게이트 무시 — 채널 검증 목적.
 
@@ -239,24 +248,47 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 
 ## Script Properties (선택)
 
-| 키                         | 기본                                        | 설명                                            |
-| -------------------------- | ------------------------------------------- | ----------------------------------------------- |
-| `KINGSHOT_SALT`            | (코드 기본값)                               | sign salt 교체                                  |
-| `KINGSHOT_BASE_URL`        | `https://kingshot-giftcode.centurygame.com` | API 베이스                                      |
-| `KINGSHOT_VERIFY_PLAYER`   | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔            |
-| `KINGSHOT_MAX_USERS`       | `100`                                       | 유저 등록 정원 (0=무제한)                       |
-| `KINGSHOT_COUPON_TTL_DAYS` | `7`                                         | 쿠폰 자동만료 일수 (0=끔)                       |
-| `KINGSHOT_VALIDATE_FID`    | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                              |
-| `SLACK_WEBHOOK_URL`        | —                                           | Slack 웹훅 URL (UI에서 저장 가능)               |
-| `SLACK_ENABLED`            | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)      |
-| `NOTIFY_BATCH`             | (true)                                      | 카테고리: 배치 결과 (기본 ON)                   |
-| `NOTIFY_SCHEDULE`          | (true)                                      | 카테고리: 배치 예약 (기본 ON)                   |
-| `NOTIFY_USER`              | (true)                                      | 카테고리: 유저 변경 (기본 ON)                   |
-| `NOTIFY_COUPON`            | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                   |
-| `NOTIFY_SETTINGS`          | (true)                                      | 카테고리: 설정 변경 (기본 ON)                   |
-| `LAST_MANAGE_AT`           | —                                           | 자동 기록 (관리 헤더 표시용)                    |
-| `LAST_BATCH_AT`            | —                                           | 자동 기록 (마지막 배치 시각, 관리 UI 표시)      |
-| `BATCH_RL_RETRY_COUNT`     | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3) |
+| 키                                  | 기본                                        | 설명                                              |
+| ----------------------------------- | ------------------------------------------- | ------------------------------------------------- |
+| `KINGSHOT_SALT`                     | (코드 기본값)                               | sign salt 교체                                    |
+| `KINGSHOT_BASE_URL`                 | `https://kingshot-giftcode.centurygame.com` | API 베이스                                        |
+| `KINGSHOT_VERIFY_PLAYER`            | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔              |
+| `KINGSHOT_MAX_USERS`                | `100`                                       | 유저 등록 정원 (0=무제한)                         |
+| `KINGSHOT_COUPON_TTL_DAYS`          | `7`                                         | 쿠폰 자동만료 일수 (0=끔)                         |
+| `KINGSHOT_VALIDATE_FID`             | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                                |
+| `SLACK_WEBHOOK_URL`                 | —                                           | Slack 웹훅 URL (UI에서 저장 가능)                 |
+| `SLACK_ENABLED`                     | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)        |
+| `NOTIFY_BATCH`                      | (true)                                      | 카테고리: 배치 결과 (기본 ON)                     |
+| `NOTIFY_SCHEDULE`                   | (true)                                      | 카테고리: 배치 예약 (기본 ON)                     |
+| `NOTIFY_USER`                       | (true)                                      | 카테고리: 유저 변경 (기본 ON)                     |
+| `NOTIFY_COUPON`                     | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                     |
+| `NOTIFY_SETTINGS`                   | (true)                                      | 카테고리: 설정 변경 (기본 ON)                     |
+| `NOTIFY_SYNC`                       | (true)                                      | 카테고리: 자동동기화 (기본 ON)                    |
+| `AUTO_SYNC_ENABLED`                 | (OFF)                                       | `'true'` 면 자동 동기화 ON (UI/메뉴 토글과 동일)  |
+| `COUPON_SOURCE_URL`                 | (Sync.js 기본 상수)                         | 자동 동기화 소스 JSON URL 교체                    |
+| `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용)                      |
+| `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, 관리 UI 표시)        |
+| `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각·결과, 관리 UI 표시) |
+| `BATCH_RL_RETRY_COUNT`              | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3)   |
+
+## 자동 쿠폰 동기화 (옵션 · `Sync.js`)
+
+외부 커뮤니티 사이트(`kingshotdata.kr`)가 발행 쿠폰을 JSON 으로 공개한다. 이를 주기적으로
+받아 **시트에 없는 "아직 유효한"(until ≥ 오늘) 신규 코드만** 자동 등록 + 배치한다.
+**기본 OFF** — 관리 UI 토글 또는 메뉴 `🔄 동기화 ▸ 자동 동기화 ON/OFF` 로 켠다(6시간 주기).
+
+**동작:** fetch → `until ≥ 오늘` & 시트에 없음 필터 → 후보를 `apiRegisterCoupon()` 에 위임
+→ 단건 검증·dedup·dead코드 캐시·debounce 배치를 기존 로직이 그대로 처리. 즉 **"사람이 손으로
+코드 친 것"과 동일한 경로** — 새로운 상태 오염 불가. 만료된 옛 코드는 후보에서 자연 제외되고,
+오타 코드(예: 사이트의 `KS00603`)는 검증에서 INVALID 처리 후 캐시되어 90콜 낭비 없음.
+이 `INVALID_CODE` 행은 관리 목록에서 숨겨지고(개수 칩만), `Clean Invalid Coupons` 로 정리 가능.
+
+**격리 보장 (사이트가 변하거나 죽어도 무영향):**
+
+- 전 과정 `try/catch` — 네트워크/JSON/스키마 변경 등 어떤 오류도 삼키고 Slack 경보만, 트리거 밖으로 안 던짐
+- 기존 수동 등록/배치 경로와 완전 분리 — `Sync.js` 통째로 삭제해도 무손상
+- 시트 카피 시 **설치형 트리거는 복사 안 됨** → 멤버/지인 시트는 켜기 전까지 완전 비활성 = 수동 등록 100% 유지
+- 킬스위치: `AUTO_SYNC_ENABLED='false'` 또는 토글 OFF 로 즉시 정지(트리거 제거)
 
 ## 알려진 제약 / 주의
 

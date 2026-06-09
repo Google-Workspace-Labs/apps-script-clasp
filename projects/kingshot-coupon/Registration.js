@@ -1,4 +1,4 @@
-/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_ */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_ */
 
 /**
  * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
@@ -319,9 +319,13 @@ function apiListManage() {
       .slice()
       .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0))
       .map((u) => ({ fid: u.fid, nickname: u.nickname || '', active: u.active }));
-    // 쿠폰: 활성 먼저 → 최신 등록순
+    // INVALID_CODE(존재하지 않는 오타) 는 캐시용으로만 시트에 남기고 UI 목록에서는 숨긴다.
+    // EXPIRED/EXPIRED_AGE(한때 유효했던 코드) 는 이력 가치가 있어 그대로 노출.
+    const isInvalidCode_ = (c) => String(c.status || '').toUpperCase() === 'INVALID_CODE';
+    const invalidHiddenCount = couponsRaw.filter(isInvalidCode_).length;
+    // 쿠폰: 활성 먼저 → 최신 등록순 (INVALID 제외)
     const coupons = couponsRaw
-      .slice()
+      .filter((c) => !isInvalidCode_(c))
       .sort((a, b) => (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0) || newest(a, b))
       .map((c) => ({
         code: c.code,
@@ -336,6 +340,7 @@ function apiListManage() {
       ttlDays: config.couponTtlDays,
       users,
       coupons,
+      invalidHiddenCount, // UI 에서 숨긴 INVALID(오타) 코드 개수 — 정리 칩 표시용
       // 헤더 표시용 "마지막 사용시각" — 시트 안 보는 사용자용
       lastUserReg: fmtTs_(maxCreated_(usersRaw)), // 유저 created 최댓값
       lastCouponReg: fmtTs_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
@@ -349,7 +354,12 @@ function apiListManage() {
         user: !!config.notify.user,
         coupon: !!config.notify.coupon,
         settings: !!config.notify.settings,
+        sync: !!config.notify.sync,
       },
+      // 외부 쿠폰 소스 자동 동기화 상태 (Sync.js)
+      autoSyncEnabled: props.getProperty('AUTO_SYNC_ENABLED') === 'true',
+      lastSync: props.getProperty('LAST_SYNC_AT') || '',
+      lastSyncResult: props.getProperty('LAST_SYNC_RESULT') || '',
     };
   });
 }
@@ -446,14 +456,15 @@ function apiSetSlackEnabled(enabled, password) {
   });
 }
 
-/** 알림 카테고리 5개 (batch/schedule/user/coupon/settings) 의 개별 토글 */
-const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings'];
+/** 알림 카테고리 6개 (batch/schedule/user/coupon/settings/sync) 의 개별 토글 */
+const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings', 'sync'];
 const NOTIFY_PROP_KEYS = {
   batch: 'NOTIFY_BATCH',
   schedule: 'NOTIFY_SCHEDULE',
   user: 'NOTIFY_USER',
   coupon: 'NOTIFY_COUPON',
   settings: 'NOTIFY_SETTINGS',
+  sync: 'NOTIFY_SYNC',
 };
 
 /** 알림 카테고리 ON/OFF (비밀번호 필요). */
@@ -781,6 +792,45 @@ function apiRunBatchNow(password) {
     return {
       ok: true,
       message: '⚡ 배치 예약됨 — 약 30초 안에 실행되고 결과는 Slack 으로 알립니다.',
+    };
+  });
+}
+
+/**
+ * 존재하지 않는(오타) 코드 정리 (비밀번호 필요).
+ * coupons 시트의 INVALID_CODE 행 삭제 + 해당 코드 logs 정리. EXPIRED 는 보존.
+ * @returns {{ok:boolean, removed?:number, message:string}}
+ */
+function apiCleanInvalidCoupons(password) {
+  return safeApiWithLock_('apiCleanInvalidCoupons', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    const res = purgeInvalidCoupons_();
+    touchManage_();
+    if (res.coupons === 0) {
+      return { ok: true, removed: 0, message: 'ℹ️ 정리할 오타 코드가 없습니다.' };
+    }
+    logSystem_(
+      'INFO',
+      'coupon-clean-invalid',
+      `web — INVALID ${res.coupons}건 삭제 (${res.codes.join(', ')}), logs ${res.logs}건`,
+      res.codes.join(','),
+    );
+    notify_(
+      {
+        title: '🗑 오타 코드 정리',
+        description: `존재하지 않는 코드 **${res.coupons}건** 삭제\n🧹 관련 logs ${res.logs}건 정리`,
+        color: NOTIFY_COLORS.gray,
+        timestamp: new Date().toISOString(),
+      },
+      'coupon-clean-invalid',
+      'coupon',
+    );
+    return {
+      ok: true,
+      removed: res.coupons,
+      message: `✅ 오타 코드 ${res.coupons}건 삭제 · logs ${res.logs}건 정리`,
     };
   });
 }
