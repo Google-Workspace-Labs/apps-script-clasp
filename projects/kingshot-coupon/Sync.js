@@ -1,4 +1,4 @@
-/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_ */
+/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, nt */
 
 /**
  * Kingshot Coupon — 외부 쿠폰 소스 자동 동기화 (옵션 레이어)
@@ -143,10 +143,13 @@ function runCouponSync_(isManual) {
     if (registered.length) {
       notify_(
         {
-          title: '🔄 자동 쿠폰 동기화',
-          description:
-            `소스에서 신규 쿠폰 **${registered.length}건** 등록\n🎟 ${registered.join(', ')}` +
-            (rejected.length ? `\n⚠️ 거부/보류 ${rejected.length}건: ${rejected.join(', ')}` : ''),
+          title: nt('sync_t'),
+          description: nt('sync_d', {
+            n: registered.length,
+            codes: registered.join(', '),
+            rej: rejected.length,
+            rejCodes: rejected.join(', '),
+          }),
           color: NOTIFY_COLORS.green,
           timestamp: startedAt.toISOString(),
         },
@@ -175,8 +178,8 @@ function syncFail_(reason, isManual) {
     logSystem_('WARN', 'sync', `동기화 실패: ${reason}`, '');
     notify_(
       {
-        title: '⚠️ 자동 쿠폰 동기화 실패',
-        description: `${reason}\n_기존 수동 등록은 정상 동작합니다._`,
+        title: nt('sync_fail_t'),
+        description: nt('sync_fail_d', { reason }),
         color: NOTIFY_COLORS.orange,
         timestamp: now.toISOString(),
       },
@@ -242,10 +245,8 @@ function apiSetAutoSync(enabled, password) {
     logSystem_('INFO', 'settings-sync', `auto-sync: ${fmt(prev)} → ${fmt(on)}`, '');
     notify_(
       {
-        title: '🔄 자동 쿠폰 동기화 설정',
-        description:
-          `자동 동기화: **${fmt(prev).toUpperCase()} → ${fmt(on).toUpperCase()}**` +
-          (on ? `\n⏱ ${SYNC_INTERVAL_HOURS}시간마다 소스 확인` : ''),
+        title: nt('sync_set_t'),
+        description: nt('sync_set_d', { prev, on, hours: SYNC_INTERVAL_HOURS }),
         color: on ? NOTIFY_COLORS.green : NOTIFY_COLORS.gray,
         timestamp: new Date().toISOString(),
       },

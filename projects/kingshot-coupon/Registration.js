@@ -1,4 +1,4 @@
-/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_ */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt */
 
 /**
  * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
@@ -155,8 +155,13 @@ function apiRegisterUser(fid) {
       // 등록 자체 알림 — 카테고리 user (default OFF)
       notify_(
         {
-          title: '👤 유저 등록 완료',
-          description: `🏷️ **${res.nickname || '(닉네임 없음)'}**\n🆔 \`${res.fid}\`  ·  👥 ${res.before} → ${res.after}명`,
+          title: nt('user_reg_t'),
+          description: nt('user_reg_d', {
+            nick: res.nickname,
+            fid: res.fid,
+            before: res.before,
+            after: res.after,
+          }),
           color: NOTIFY_COLORS.green,
           // 우측에 75x75 아바타 (있을 때만) — Kingshot 응답에 avatar_image 없는 유저는 자동 생략
           thumbnail: res.avatar ? { url: res.avatar } : undefined,
@@ -170,8 +175,8 @@ function apiRegisterUser(fid) {
       if (hasCoupons) {
         notify_(
           {
-            title: '⏱ 배치 예약 (유저 등록)',
-            description: `약 3분 뒤 자동 배치 — 신규 유저에 활성 쿠폰 발급`,
+            title: nt('sched_user_t'),
+            description: nt('sched_user_d'),
             color: NOTIFY_COLORS.green,
             timestamp: new Date().toISOString(),
           },
@@ -466,8 +471,8 @@ function apiSetSlackWebhook(url, password) {
     logSystem_('INFO', 'settings-slack-url', 'webhook set (slack auto-enabled)', '');
     notifySlack_(
       {
-        title: '✅ Slack 연동 완료',
-        description: '이 채널로 알림이 전송됩니다. (테스트 메시지)',
+        title: nt('slack_ok_t'),
+        description: nt('slack_ok_d'),
         color: NOTIFY_COLORS.green,
         timestamp: new Date().toISOString(),
       },
@@ -629,8 +634,8 @@ function apiSetCouponTtl(days, password) {
     logSystem_('INFO', 'settings-ttl', `TTL: ${fmtEn(prevN)} → ${fmtEn(n)}`, '');
     notify_(
       {
-        title: '⏳ 쿠폰 자동만료(TTL) 변경',
-        description: `**${fmtKr(prevN)} → ${fmtKr(n)}**`,
+        title: nt('ttl_t'),
+        description: nt('ttl_d', { prev: prevN, n }),
         color: NOTIFY_COLORS.green,
         timestamp: new Date().toISOString(),
       },
@@ -671,10 +676,14 @@ function apiDeleteUser(fid, password) {
     );
     notify_(
       {
-        title: '🗑️ 유저 삭제 완료',
-        description:
-          `🏷️ **${removedNick}**\n🆔 \`${cleanFid}\`  ·  👥 ${before} → ${after}명` +
-          `\n🧹 logs ${purgedLogs}건 정리`,
+        title: nt('user_del_t'),
+        description: nt('user_del_d', {
+          nick: removedNick,
+          fid: cleanFid,
+          before,
+          after,
+          logs: purgedLogs,
+        }),
         color: NOTIFY_COLORS.orange,
         timestamp: new Date().toISOString(),
       },
@@ -781,8 +790,8 @@ function registerCouponNow_(codeRaw) {
         addCouponToSheet_(code, 'INVALID_CODE', /*enabled=*/ false);
         notify_(
           {
-            title: '🎟 쿠폰 등록 거부 (존재 X)',
-            description: `\`${code}\` — INVALID_CODE, dead code 캐시 기록`,
+            title: nt('cpn_invalid_t'),
+            description: nt('cpn_invalid_d', { code }),
             color: NOTIFY_COLORS.red,
             timestamp: new Date().toISOString(),
           },
@@ -800,8 +809,8 @@ function registerCouponNow_(codeRaw) {
         addCouponToSheet_(code, 'EXPIRED', /*enabled=*/ false);
         notify_(
           {
-            title: '🎟 쿠폰 등록 거부 (만료)',
-            description: `\`${code}\` — EXPIRED, dead code 캐시 기록`,
+            title: nt('cpn_expired_t'),
+            description: nt('cpn_expired_d', { code }),
             color: NOTIFY_COLORS.orange,
             timestamp: new Date().toISOString(),
           },
@@ -837,8 +846,8 @@ function registerCouponNow_(codeRaw) {
 
   notify_(
     {
-      title: '🎟 쿠폰 등록 완료',
-      description: `🎟 \`${code}\`\n📍 상태: **${status}** _(${note})_`,
+      title: nt('cpn_reg_t'),
+      description: nt('cpn_reg_d', { code, status, nc, nr }),
       color: NOTIFY_COLORS.green,
       timestamp: new Date().toISOString(),
     },
@@ -847,8 +856,8 @@ function registerCouponNow_(codeRaw) {
   );
   notify_(
     {
-      title: '⏱ 배치 예약 (쿠폰 등록)',
-      description: `약 30초 뒤 자동 배치 — 신규 쿠폰 \`${code}\` 전 유저에 발급`,
+      title: nt('sched_cpn_t'),
+      description: nt('sched_cpn_d', { code }),
       color: NOTIFY_COLORS.green,
       timestamp: new Date().toISOString(),
     },
@@ -880,8 +889,8 @@ function apiRunBatchNow(password) {
     logSystem_('INFO', 'schedule-manual', 'manual batch trigger requested', '');
     notify_(
       {
-        title: '⚡ 즉시 배치 실행',
-        description: '수동 트리거 — 약 30초 뒤 자동 시작',
+        title: nt('batch_now_t'),
+        description: nt('batch_now_d'),
         color: NOTIFY_COLORS.green,
         timestamp: new Date().toISOString(),
       },
@@ -918,8 +927,8 @@ function apiCleanInvalidCoupons(password) {
     );
     notify_(
       {
-        title: '🗑 오타 코드 정리',
-        description: `존재하지 않는 코드 **${res.coupons}건** 삭제\n🧹 관련 logs ${res.logs}건 정리`,
+        title: nt('clean_t'),
+        description: nt('clean_d', { coupons: res.coupons, logs: res.logs }),
         color: NOTIFY_COLORS.gray,
         timestamp: new Date().toISOString(),
       },
