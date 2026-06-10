@@ -34,10 +34,17 @@
 // ============================================================
 
 function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
+  // createTemplateFromFile → <?!= include('i18n') ?> 처리(클라이언트 i18n 사전 끼워넣기)
+  return HtmlService.createTemplateFromFile('index')
+    .evaluate()
     .setTitle('Kingshot')
     .setFaviconUrl(faviconUrl_())
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** HtmlTemplate include 헬퍼 — <?!= include('파일') ?> 로 다른 .html 파일 내용을 끼워넣는다. */
+function include(name) {
+  return HtmlService.createHtmlOutputFromFile(name).getContent();
 }
 
 /**
