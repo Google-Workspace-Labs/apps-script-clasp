@@ -505,8 +505,8 @@ function apiSetSlackEnabled(enabled, password) {
       logSystem_('INFO', 'settings-slack-on', `slack: ${fmt(prevOn)} → ${fmt(on)}`, '');
       notifySlack_(
         {
-          title: `🔔 Slack 알림: ${fmt(prevOn)} → ${fmt(on)}`,
-          description: '이제 이벤트 알림이 이 채널로 전송됩니다.',
+          title: nt('slack_on_t', { prev: prevOn, on }),
+          description: nt('slack_on_d'),
           color: NOTIFY_COLORS.green,
           timestamp: new Date().toISOString(),
         },
@@ -516,8 +516,8 @@ function apiSetSlackEnabled(enabled, password) {
       // 끄기 직전(아직 ON 상태)에 마지막 메시지 전송
       notifySlack_(
         {
-          title: `🔕 Slack 알림: ${fmt(prevOn)} → ${fmt(on)}`,
-          description: '이후 알림이 전송되지 않습니다. (마지막 메시지)',
+          title: nt('slack_off_t', { prev: prevOn, on }),
+          description: nt('slack_off_d'),
           color: NOTIFY_COLORS.gray,
           timestamp: new Date().toISOString(),
         },

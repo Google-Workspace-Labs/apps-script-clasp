@@ -44,6 +44,10 @@ const SLACK_MSG = {
     sched_user_d: '약 3분 뒤 자동 배치 — 신규 유저에 활성 쿠폰 발급',
     slack_ok_t: '✅ Slack 연동 완료',
     slack_ok_d: '이 채널로 알림이 전송됩니다. (테스트 메시지)',
+    slack_on_t: (d) => `🔔 Slack 알림: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+    slack_on_d: '이제 이벤트 알림이 이 채널로 전송됩니다.',
+    slack_off_t: (d) => `🔕 Slack 알림: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+    slack_off_d: '이후 알림이 전송되지 않습니다. (마지막 메시지)',
     ttl_t: '⏳ 쿠폰 자동만료(TTL) 변경',
     ttl_d: (d) => {
       const f = (v) => (v === null ? '(미설정)' : v === 0 ? '끔' : `${v}일`);
@@ -82,6 +86,22 @@ const SLACK_MSG = {
     sync_set_d: (d) =>
       `자동 동기화: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
       (d.on ? `\n⏱ ${d.hours}시간마다 소스 확인` : ''),
+    // 배치 완료 임베드 (buildBatchEmbed_)
+    bm_title: '🎁 Kingshot 배치 완료',
+    bm_f_success: '✅ 성공',
+    bm_f_already: '🔁 이미받음',
+    bm_f_disabled: '🗑️ 만료·무효',
+    bm_f_fail: '❌ 실패',
+    bm_f_skip: '⏭️ 스킵',
+    bm_f_target: '🎯 대상',
+    bm_target_val: (d) => `${d.users}명 × ${d.coupons}쿠폰`,
+    bm_footer: (d) => `소요 ${d.elapsed}s (건당 ~${d.avg}s)`,
+    bm_timeout: '⏱️ 시간초과 → 1분 뒤 자동 이어실행',
+    bm_warn: (d) => `🚨 rate limit/오류 ${d.warn}건 감지 — 봇·IP 상태 점검 필요`,
+    // 배치 재시도 상태(meta.retryStatus, Code.js)
+    rs_retry: (d) => `🔁 자동 재시도 ${d.n}/${d.max} — ${d.min}분 뒤`,
+    rs_blocked: (d) => `🚫 ${d.n}회 재시도 후 ${d.x}건 영구 차단 — 수동 확인 필요`,
+    rs_recovered: (d) => `✅ 자동 재시도 ${d.n}회 만에 회복`,
   },
   en: {
     user_reg_t: '👤 User registered',
@@ -91,6 +111,10 @@ const SLACK_MSG = {
     sched_user_d: 'Auto-batch in ~3 min — delivering active coupons to the new user',
     slack_ok_t: '✅ Slack connected',
     slack_ok_d: 'Alerts will be sent to this channel. (test message)',
+    slack_on_t: (d) => `🔔 Slack alerts: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+    slack_on_d: 'Event alerts will now be sent to this channel.',
+    slack_off_t: (d) => `🔕 Slack alerts: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+    slack_off_d: 'No more alerts will be sent. (final message)',
     ttl_t: '⏳ Coupon auto-expiry (TTL) changed',
     ttl_d: (d) => {
       const f = (v) => (v === null ? 'unset' : v === 0 ? 'off' : `${v} days`);
@@ -126,5 +150,19 @@ const SLACK_MSG = {
     sync_set_d: (d) =>
       `Auto-sync: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
       (d.on ? `\n⏱ checks source every ${d.hours}h` : ''),
+    bm_title: '🎁 Kingshot batch complete',
+    bm_f_success: '✅ Success',
+    bm_f_already: '🔁 Already had',
+    bm_f_disabled: '🗑️ Expired/invalid',
+    bm_f_fail: '❌ Failed',
+    bm_f_skip: '⏭️ Skipped',
+    bm_f_target: '🎯 Target',
+    bm_target_val: (d) => `${d.users} users × ${d.coupons} coupons`,
+    bm_footer: (d) => `took ${d.elapsed}s (~${d.avg}s each)`,
+    bm_timeout: '⏱️ Timeout → auto-continues in 1 min',
+    bm_warn: (d) => `🚨 ${d.warn} rate-limit/error(s) detected — check bot/IP status`,
+    rs_retry: (d) => `🔁 Auto-retry ${d.n}/${d.max} — in ${d.min} min`,
+    rs_blocked: (d) => `🚫 ${d.x} permanently blocked after ${d.n} retries — manual check needed`,
+    rs_recovered: (d) => `✅ Recovered after ${d.n} auto-retries`,
   },
 };

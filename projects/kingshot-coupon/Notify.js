@@ -1,4 +1,4 @@
-/* global getConfig, logSystem_ */
+/* global getConfig, logSystem_, nt */
 
 /**
  * Kingshot Coupon - 외부 신호 (Slack 알림 전송 + 배치 트리거 예약)
@@ -88,30 +88,34 @@ function buildBatchEmbed_(stats, meta) {
         ? NOTIFY_COLORS.orange
         : NOTIFY_COLORS.green;
 
-  const footerParts = [`소요 ${meta.elapsedSec}s (건당 ~${meta.avg}s)`];
+  const footerParts = [nt('bm_footer', { elapsed: meta.elapsedSec, avg: meta.avg })];
   if (meta.stoppedByTime) {
-    footerParts.push('⏱️ 시간초과 → 1분 뒤 자동 이어실행');
+    footerParts.push(nt('bm_timeout'));
   }
   if (meta.retryStatus) {
     footerParts.push(meta.retryStatus);
   }
 
   const embed = {
-    title: '🎁 Kingshot 배치 완료',
+    title: nt('bm_title'),
     color,
     fields: [
-      { name: '✅ 성공', value: `${stats.success}`, inline: true },
-      { name: '🔁 이미받음', value: `${stats.already}`, inline: true },
-      { name: '🗑️ 만료·무효', value: `${stats.disabled}`, inline: true },
-      { name: '❌ 실패', value: `${stats.fail}`, inline: true },
-      { name: '⏭️ 스킵', value: `${stats.skip}`, inline: true },
-      { name: '🎯 대상', value: `${meta.userCount}명 × ${meta.couponCount}쿠폰`, inline: true },
+      { name: nt('bm_f_success'), value: `${stats.success}`, inline: true },
+      { name: nt('bm_f_already'), value: `${stats.already}`, inline: true },
+      { name: nt('bm_f_disabled'), value: `${stats.disabled}`, inline: true },
+      { name: nt('bm_f_fail'), value: `${stats.fail}`, inline: true },
+      { name: nt('bm_f_skip'), value: `${stats.skip}`, inline: true },
+      {
+        name: nt('bm_f_target'),
+        value: nt('bm_target_val', { users: meta.userCount, coupons: meta.couponCount }),
+        inline: true,
+      },
     ],
     footer: { text: footerParts.join(' · ') },
     timestamp: new Date().toISOString(),
   };
   if (stats.warn > 0) {
-    embed.description = `🚨 rate limit/오류 ${stats.warn}건 감지 — 봇·IP 상태 점검 필요`;
+    embed.description = nt('bm_warn', { warn: stats.warn });
   }
   return embed;
 }

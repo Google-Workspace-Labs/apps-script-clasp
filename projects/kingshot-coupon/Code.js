@@ -1,4 +1,4 @@
-/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_ */
+/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_, nt */
 
 /**
  * Kingshot Coupon - 엔트리 / 메뉴 / 배치 / 시트 I/O
@@ -686,16 +686,20 @@ function runCouponBatch_() {
       const nextCount = prevRetry + 1;
       props.setProperty('BATCH_RL_RETRY_COUNT', String(nextCount));
       nextDelayMs = RL_COOLDOWN_MS;
-      retryStatus = `🔁 자동 재시도 ${nextCount}/${MAX_RL_RETRIES} — ${Math.round(RL_COOLDOWN_MS / 60000)}분 뒤`;
+      retryStatus = nt('rs_retry', {
+        n: nextCount,
+        max: MAX_RL_RETRIES,
+        min: Math.round(RL_COOLDOWN_MS / 60000),
+      });
     } else {
       // 최종 실패 — 더 이상 재시도 안 함, 카운터 리셋, 사람 개입 신호
       props.deleteProperty('BATCH_RL_RETRY_COUNT');
-      retryStatus = `🚫 ${MAX_RL_RETRIES}회 재시도 후 ${stats.warn}건 영구 차단 — 수동 확인 필요`;
+      retryStatus = nt('rs_blocked', { n: MAX_RL_RETRIES, x: stats.warn });
     }
   } else if (prevRetry > 0) {
     // 회복! 카운터 리셋 + 회복 메시지
     props.deleteProperty('BATCH_RL_RETRY_COUNT');
-    retryStatus = `✅ 자동 재시도 ${prevRetry}회 만에 회복`;
+    retryStatus = nt('rs_recovered', { n: prevRetry });
   }
 
   // Slack 알림 (임베드 빌더는 Notify.js)
