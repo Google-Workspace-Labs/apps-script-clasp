@@ -78,34 +78,35 @@ function requireSheet_(logicalName) {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
+  // 메뉴 라벨은 배포자 언어(nt). nt 는 getConfig 실패 시 ko 폴백이라 onOpen 안전.
   const setupMenu = ui
     .createMenu('🚀 Setup')
-    .addItem('Quick Setup (사용 안내)', 'quickSetupWizard')
-    .addItem('Setup Sheets (시트 4개 생성)', 'setupSheets')
+    .addItem(nt('mn_quick_setup'), 'quickSetupWizard')
+    .addItem(nt('mn_setup_sheets'), 'setupSheets')
     .addSeparator()
-    .addItem('📖 시작하기 시트 생성 (배포자 1회)', 'createGuideSheet');
+    .addItem(nt('mn_create_guide'), 'createGuideSheet');
 
   const runMenu = ui
-    .createMenu('▶ 실행')
+    .createMenu(nt('mn_run'))
     .addItem('Run Coupon Batch', 'runCouponBatch')
     .addItem('Test Single Coupon', 'testSingleCoupon');
 
   const manageMenu = ui
-    .createMenu('🛠 관리')
+    .createMenu(nt('mn_manage'))
     .addItem('Deactivate User', 'deactivateUser')
     .addItem('Delete User', 'deleteUser')
     .addItem('Clean Duplicate Users', 'cleanDuplicateUsers')
     .addSeparator()
     .addItem('Clean Expired Logs', 'cleanExpiredLogs')
-    .addItem('Clean Invalid Coupons (오타 코드)', 'cleanInvalidCoupons')
+    .addItem(nt('mn_clean_invalid'), 'cleanInvalidCoupons')
     .addItem('Clear System Logs', 'clearSystemLogs');
 
   const syncMenu = ui
-    .createMenu('🔄 동기화')
-    .addItem('지금 동기화 (1회)', 'menuRunSyncNow')
-    .addItem('자동 동기화 ON/OFF', 'menuToggleAutoSync');
+    .createMenu(nt('mn_sync'))
+    .addItem(nt('mn_sync_now'), 'menuRunSyncNow')
+    .addItem(nt('mn_sync_toggle'), 'menuToggleAutoSync');
 
-  const diagMenu = ui.createMenu('🔍 진단').addItem('Diagnose Dedup', 'diagnoseDedup');
+  const diagMenu = ui.createMenu(nt('mn_diag')).addItem('Diagnose Dedup', 'diagnoseDedup');
 
   ui.createMenu('👑 Kingshot Bot')
     .addSubMenu(setupMenu)
