@@ -1055,10 +1055,18 @@
         }
       }
 
+      // 서버 응답 메시지 → 접속자 언어. code 있으면 사전(srv_<code>)으로 조립, 없으면 message 폴백.
+      //  → 서버가 code+data 로 변환된 항목은 ko/en 자동, 미변환 항목은 기존 message(한국어) 그대로.
+      function srvMsg_(res) {
+        if (!res) return t('unknown_response');
+        if (res.code) return t('srv_' + res.code, res.data || {});
+        return res.message || t('unknown_response');
+      }
+
       function render(resId, res) {
         const el = $(resId);
         el.className = 'result ' + (res && res.ok ? 'ok' : 'err');
-        el.textContent = res && res.message ? res.message : t('unknown_response');
+        el.textContent = srvMsg_(res);
         el.style.opacity = ''; // 이전 fade-out 잔재 제거
       }
 
@@ -1179,7 +1187,7 @@
               mgFlash(t('entry_go'));
             } else {
               if (w) w.close();
-              promptPw((res && res.message) || t('entry_fail'));
+              promptPw(srvMsg_(res) || t('entry_fail'));
             }
           })
           .withFailureHandler(function (e) {
@@ -1504,10 +1512,10 @@
           .withSuccessHandler(function (res) {
             if (!res || !res.ok) {
               cb.checked = !cb.checked;
-              mgFlash((res && res.message) || t('failed'));
+              mgFlash(srvMsg_(res));
               return;
             }
-            mgFlash(res.message);
+            mgFlash(srvMsg_(res));
             resetUserLookupIfFid_(fid);
             loadManage();
           })
@@ -1528,10 +1536,10 @@
           .withSuccessHandler(function (res) {
             if (!res || !res.ok) {
               cb.checked = !cb.checked;
-              mgFlash((res && res.message) || t('failed'));
+              mgFlash(srvMsg_(res));
               return;
             }
-            mgFlash(res.message);
+            mgFlash(srvMsg_(res));
             loadManage();
           })
           .withFailureHandler(function (e) {
@@ -1547,7 +1555,7 @@
         if (!window.confirm(t('confirm_delete', fid))) return;
         google.script.run
           .withSuccessHandler(function (res) {
-            mgFlash(res && res.message);
+            mgFlash(srvMsg_(res));
             if (res && res.ok) {
               resetUserLookupIfFid_(fid);
               loadManage();
@@ -1564,7 +1572,7 @@
         if (!pw) return;
         google.script.run
           .withSuccessHandler(function (res) {
-            mgFlash(res && res.message);
+            mgFlash(srvMsg_(res));
             if (res && res.ok) $('ttlInput').value = res.ttlDays;
           })
           .withFailureHandler(function (e) {
@@ -1578,7 +1586,7 @@
         if (!pw) return;
         google.script.run
           .withSuccessHandler(function (res) {
-            mgFlash(res && res.message);
+            mgFlash(srvMsg_(res));
             // 예약 후 ~35초 뒤에 lastBatch 가 갱신될 가능성 — 자동 새로고침
             if (res && res.ok) {
               setTimeout(loadManage, 35000);
@@ -1640,10 +1648,10 @@
           .withSuccessHandler(function (res) {
             if (!res || !res.ok) {
               cb.checked = !cb.checked;
-              mgFlash((res && res.message) || t('failed'));
+              mgFlash(srvMsg_(res));
               return;
             }
-            mgFlash(res.message);
+            mgFlash(srvMsg_(res));
             loadManage();
           })
           .withFailureHandler(function (e) {
@@ -1662,7 +1670,7 @@
             if (res && res.ok) {
               mgFlash(t('sync_done', (res.registered || []).length, res.candidates || 0));
             } else {
-              mgFlash((res && res.message) || t('done'));
+              mgFlash(srvMsg_(res));
             }
             loadManage();
           })
@@ -1695,7 +1703,7 @@
         mgFlash(t('cleaning'));
         google.script.run
           .withSuccessHandler(function (res) {
-            mgFlash((res && res.message) || t('done'));
+            mgFlash(srvMsg_(res));
             loadManage();
           })
           .withFailureHandler(function (e) {
@@ -1748,10 +1756,10 @@
           .withSuccessHandler(function (res) {
             if (!res || !res.ok) {
               cb.checked = !cb.checked;
-              mgFlash((res && res.message) || t('failed'));
+              mgFlash(srvMsg_(res));
               return;
             }
-            mgFlash(res.message);
+            mgFlash(srvMsg_(res));
             // 통계 갱신 위해 loadManage 한 번
             loadManage();
           })
@@ -1796,7 +1804,7 @@
         if (!pw) return;
         google.script.run
           .withSuccessHandler(function (res) {
-            mgFlash(res && res.message);
+            mgFlash(srvMsg_(res));
             if (res && res.ok) {
               $('slUrl').value = '';
               loadManage();
@@ -1818,10 +1826,10 @@
           .withSuccessHandler(function (res) {
             if (!res || !res.ok) {
               cb.checked = !cb.checked;
-              mgFlash((res && res.message) || t('failed'));
+              mgFlash(srvMsg_(res));
               return;
             }
-            mgFlash(res.message);
+            mgFlash(srvMsg_(res));
             loadManage();
           })
           .withFailureHandler(function (e) {

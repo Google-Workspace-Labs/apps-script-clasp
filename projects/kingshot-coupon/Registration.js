@@ -107,7 +107,7 @@ function safeApi_(name, fn) {
     } catch (logErr) {
       // 로깅 실패는 조용히 무시 (시트 권한 문제 등)
     }
-    return { ok: false, message: `❌ 서버 오류: ${msg}` };
+    return { ok: false, code: 'error', data: { msg } };
   }
 }
 
@@ -123,7 +123,7 @@ function safeApiWithLock_(name, fn) {
     try {
       lock.waitLock(15000);
     } catch (e) {
-      return { ok: false, message: '서버가 바쁩니다. 잠시 후 다시 시도하세요.' };
+      return { ok: false, code: 'busy' };
     }
     try {
       return fn();
@@ -180,20 +180,27 @@ function apiRegisterUser(fid) {
         );
       }
 
-      // 사용자에게 보일 메시지도 상황별로 분기
-      const baseMsg = `✅ 등록 완료: ${res.nickname || '(닉네임 없음)'} (ID ${res.fid}) — ${res.before} → ${res.after}명`;
-      const msg = hasCoupons
-        ? `${baseMsg}\n약 3분 안에 등록된 쿠폰이 자동 발급됩니다 (Slack 알림).`
-        : `${baseMsg}\n(※ 등록된 활성 쿠폰이 없어 배치는 예약하지 않음 — 쿠폰 등록 시 자동 발급됩니다)`;
-      return { ok: true, message: msg };
+      // 표시 메시지는 클라이언트가 code+data 로 조립(접속자 언어). hasCoupons 로 문구 분기.
+      return {
+        ok: true,
+        code: 'user_registered',
+        data: {
+          nick: res.nickname || '',
+          fid: res.fid,
+          before: res.before,
+          after: res.after,
+          hasCoupons: hasCoupons,
+        },
+      };
     }
     if (res.duplicate) {
       return {
         ok: false,
-        message: `ℹ️ 이미 등록됨: ${res.nickname || '(닉네임 없음)'} (ID ${String(fid).trim()})`,
+        code: 'user_dup',
+        data: { nick: res.nickname || '', fid: String(fid).trim() },
       };
     }
-    return { ok: false, message: `❌ ${res.reason}` };
+    return { ok: false, code: 'user_fail', data: { reason: res.reason } };
   });
 }
 
@@ -262,7 +269,7 @@ function checkDatePassword_(password) {
 function apiToggleUser(fid, password) {
   return safeApiWithLock_('apiToggleUser', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const user = findUser_(fid);
     if (!user) {
@@ -306,7 +313,7 @@ function apiToggleUser(fid, password) {
 function apiToggleCoupon(code, password) {
   return safeApiWithLock_('apiToggleCoupon', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const c = findCoupon_(code);
     if (!c) {
@@ -419,7 +426,7 @@ function apiListManage() {
 function apiGetSheetUrl(password) {
   return safeApi_('apiGetSheetUrl', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const url = SpreadsheetApp.getActiveSpreadsheet().getUrl();
     logSystem_('INFO', 'db-entry', 'web — Entry(DB) 열기', '');
@@ -435,7 +442,7 @@ function apiGetSheetUrl(password) {
 function apiSetSlackWebhook(url, password) {
   return safeApi_('apiSetSlackWebhook', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const props = PropertiesService.getScriptProperties();
     const u = String(url || '').trim();
@@ -473,7 +480,7 @@ function apiSetSlackWebhook(url, password) {
 function apiSetSlackEnabled(enabled, password) {
   return safeApi_('apiSetSlackEnabled', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const props = PropertiesService.getScriptProperties();
     const on = enabled === true || enabled === 'true';
@@ -534,7 +541,7 @@ const NOTIFY_PROP_KEYS = {
 function apiSetNotify(category, enabled, password) {
   return safeApi_('apiSetNotify', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     if (NOTIFY_CATEGORIES.indexOf(category) < 0) {
       return { ok: false, message: `❌ 알 수 없는 카테고리: ${category}` };
@@ -585,7 +592,7 @@ function touchManage_() {
 function apiSetCouponTtl(days, password) {
   return safeApi_('apiSetCouponTtl', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const n = parseInt(days, 10);
     if (isNaN(n) || n < 0 || n > 365) {
@@ -625,7 +632,7 @@ function apiSetCouponTtl(days, password) {
 function apiDeleteUser(fid, password) {
   return safeApiWithLock_('apiDeleteUser', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const user = findUser_(fid);
     if (!user) {
@@ -837,7 +844,7 @@ function registerCouponNow_(codeRaw) {
 function apiRunBatchNow(password) {
   return safeApi_('apiRunBatchNow', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     requestBatch_(); // 기본 30s
     touchManage_();
@@ -867,7 +874,7 @@ function apiRunBatchNow(password) {
 function apiCleanInvalidCoupons(password) {
   return safeApiWithLock_('apiCleanInvalidCoupons', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const res = purgeInvalidCoupons_();
     touchManage_();

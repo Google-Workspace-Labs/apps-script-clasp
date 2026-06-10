@@ -95,6 +95,17 @@
             `OK · 신규 ${n}건` + (rej ? ` · 거부/보류 ${rej}건` : '') + ` · 후보 ${cand}`,
           sync_result_fail: (reason) => `FAIL · ${reason}`,
           sync_done: (n, cand) => `✅ 동기화 완료 — 신규 ${n}건 · 후보 ${cand}`,
+          // ── 서버 결과 메시지(srv_<code>) — 서버는 {ok, code, data} 반환, 클라가 조립 ──
+          srv_error: (d) => `❌ 서버 오류: ${d.msg}`,
+          srv_busy: '서버가 바쁩니다. 잠시 후 다시 시도하세요.',
+          srv_bad_pw: '❌ 비밀번호가 올바르지 않습니다.',
+          srv_user_registered: (d) =>
+            `✅ 등록 완료: ${d.nick || t('no_nick')} (ID ${d.fid}) — ${d.before} → ${d.after}명` +
+            (d.hasCoupons
+              ? '\n약 3분 안에 등록된 쿠폰이 자동 발급됩니다 (Slack 알림).'
+              : '\n(※ 등록된 활성 쿠폰이 없어 배치는 예약하지 않음 — 쿠폰 등록 시 자동 발급됩니다)'),
+          srv_user_dup: (d) => `ℹ️ 이미 등록됨: ${d.nick || t('no_nick')} (ID ${d.fid})`,
+          srv_user_fail: (d) => `❌ ${d.reason}`,
         },
         en: {
           title: 'Coupon Redemption',
@@ -190,6 +201,16 @@
             `OK · ${n} new` + (rej ? ` · ${rej} rejected` : '') + ` · ${cand} candidates`,
           sync_result_fail: (reason) => `FAIL · ${reason}`,
           sync_done: (n, cand) => `✅ Sync done — ${n} new · ${cand} candidates`,
+          srv_error: (d) => `❌ Server error: ${d.msg}`,
+          srv_busy: 'Server busy. Please try again shortly.',
+          srv_bad_pw: '❌ Incorrect password.',
+          srv_user_registered: (d) =>
+            `✅ Registered: ${d.nick || t('no_nick')} (ID ${d.fid}) — ${d.before} → ${d.after}` +
+            (d.hasCoupons
+              ? '\nCoupons auto-deliver in ~3 min (Slack alert).'
+              : '\n(No active coupons — batch not scheduled; auto-delivers when a coupon is added.)'),
+          srv_user_dup: (d) => `ℹ️ Already registered: ${d.nick || t('no_nick')} (ID ${d.fid})`,
+          srv_user_fail: (d) => `❌ ${d.reason}`,
         },
       };
 </script>
