@@ -1,4 +1,4 @@
-/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_, nt */
+/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_, nt, invalidateConfigCache_ */
 
 /**
  * Kingshot Coupon - 엔트리 / 메뉴 / 배치 / 시트 I/O
@@ -78,43 +78,88 @@ function requireSheet_(logicalName) {
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
 
-  // 메뉴 라벨은 배포자 언어(nt). nt 는 getConfig 실패 시 ko 폴백이라 onOpen 안전.
+  // 메뉴 라벨은 '시트 메뉴 언어(MENU_LANG)'. nt 3번째 인자로 lang 오버라이드.
+  // getConfig 실패(권한 제약) 시 ko 폴백 → onOpen 안 깨짐.
+  let ml = 'ko';
+  try {
+    ml = getConfig().menuLang;
+  } catch (e) {
+    ml = 'ko';
+  }
+
   const setupMenu = ui
     .createMenu('🚀 Setup')
-    .addItem(nt('mn_quick_setup'), 'quickSetupWizard')
-    .addItem(nt('mn_setup_sheets'), 'setupSheets')
+    .addItem(nt('mn_quick_setup', null, ml), 'quickSetupWizard')
+    .addItem(nt('mn_setup_sheets', null, ml), 'setupSheets')
     .addSeparator()
-    .addItem(nt('mn_create_guide'), 'createGuideSheet');
+    .addItem(nt('mn_create_guide', null, ml), 'createGuideSheet');
 
   const runMenu = ui
-    .createMenu(nt('mn_run'))
+    .createMenu(nt('mn_run', null, ml))
     .addItem('Run Coupon Batch', 'runCouponBatch')
     .addItem('Test Single Coupon', 'testSingleCoupon');
 
   const manageMenu = ui
-    .createMenu(nt('mn_manage'))
+    .createMenu(nt('mn_manage', null, ml))
     .addItem('Deactivate User', 'deactivateUser')
     .addItem('Delete User', 'deleteUser')
     .addItem('Clean Duplicate Users', 'cleanDuplicateUsers')
     .addSeparator()
     .addItem('Clean Expired Logs', 'cleanExpiredLogs')
-    .addItem(nt('mn_clean_invalid'), 'cleanInvalidCoupons')
+    .addItem(nt('mn_clean_invalid', null, ml), 'cleanInvalidCoupons')
     .addItem('Clear System Logs', 'clearSystemLogs');
 
   const syncMenu = ui
-    .createMenu(nt('mn_sync'))
-    .addItem(nt('mn_sync_now'), 'menuRunSyncNow')
-    .addItem(nt('mn_sync_toggle'), 'menuToggleAutoSync');
+    .createMenu(nt('mn_sync', null, ml))
+    .addItem(nt('mn_sync_now', null, ml), 'menuRunSyncNow')
+    .addItem(nt('mn_sync_toggle', null, ml), 'menuToggleAutoSync');
 
-  const diagMenu = ui.createMenu(nt('mn_diag')).addItem('Diagnose Dedup', 'diagnoseDedup');
+  const diagMenu = ui
+    .createMenu(nt('mn_diag', null, ml))
+    .addItem('Diagnose Dedup', 'diagnoseDedup');
+
+  // 🌐 언어 — 시트(진입점)에서 직접 배포자 언어 변경. 웹앱 배포 전에도 가능(모순 해소).
+  // 라벨은 이중언어로 고정(어느 기본 언어에서든 인식 가능).
+  const langMenu = ui
+    .createMenu('🌐 Language / 언어')
+    .addItem('한국어 (Korean)', 'menuSetLangKo')
+    .addItem('English (영어)', 'menuSetLangEn');
 
   ui.createMenu('👑 Kingshot Bot')
+    .addSubMenu(langMenu)
+    .addSeparator()
     .addSubMenu(setupMenu)
     .addSubMenu(runMenu)
     .addSubMenu(manageMenu)
     .addSubMenu(syncMenu)
     .addSubMenu(diagMenu)
     .addToUi();
+}
+
+/** 시트 메뉴: 메뉴 언어 KO. */
+function menuSetLangKo() {
+  setMenuLang_('ko');
+}
+/** 시트 메뉴: 메뉴 언어 EN. */
+function menuSetLangEn() {
+  setMenuLang_('en');
+}
+/**
+ * 시트 메뉴 언어(MENU_LANG) 설정 → 메뉴 즉시 재구성(onOpen 재호출, 시트 reload 불필요).
+ * Slack 언어(SLACK_LANG)는 최초 null 일 때만 메뉴 언어로 seed(이후 웹앱 전용).
+ */
+function setMenuLang_(lang) {
+  const v = lang === 'en' ? 'en' : 'ko';
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('MENU_LANG', v);
+  // Slack 알림 언어 최초 1회 seed
+  if (props.getProperty('SLACK_LANG') === null) {
+    props.setProperty('SLACK_LANG', v);
+  }
+  invalidateConfigCache_();
+  onOpen(); // 메뉴 즉시 재구성 (addToUi 가 기존 메뉴 교체)
+  const msg = v === 'en' ? '✓ English — menu updated.' : '✓ 한국어 — 메뉴 갱신됨.';
+  SpreadsheetApp.getActiveSpreadsheet().toast(msg, '🌐 Kingshot Bot', 5);
 }
 
 /**

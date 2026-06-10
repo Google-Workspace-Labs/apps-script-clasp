@@ -90,8 +90,10 @@ function getConfig() {
     // Slack 알림용 Incoming Webhook URL (유일한 채널)
     slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
     slackEnabled: props.getProperty('SLACK_ENABLED') !== 'false',
-    // Slack 알림 언어 — 배포자 본인 채널이라 '배포자 언어'(접속자 토글과 무관). 기본 ko.
+    // Slack 알림 언어(SLACK_LANG) — 배포자 채널용. 최초 null 이면 메뉴 언어로 seed, 이후 웹앱 전용. 기본 ko.
     slackLang: props.getProperty('SLACK_LANG') === 'en' ? 'en' : 'ko',
+    // 시트 메뉴 언어(MENU_LANG) — 시트 메뉴에서 변경(웹앱 배포 전에도 가능). 기본 ko.
+    menuLang: props.getProperty('MENU_LANG') === 'en' ? 'en' : 'ko',
 
     // 알림 카테고리 — 채널(Slack)이 ON 이어도 해당 카테고리 OFF 면 전송 X.
     // 6개 카테고리 모두 기본 ON (opt-out 정책) — 처음 전부 켜놓고 노이즈 느끼면 관리 UI 에서 끔.

@@ -12,13 +12,19 @@
 
 /* global getConfig */
 
-/** 서버 i18n 조회 (Slack 알림 전용, SLACK_LANG 기준). */
-function nt(key, data) {
-  let lang;
-  try {
-    lang = getConfig().slackLang;
-  } catch (e) {
-    lang = 'ko';
+/**
+ * 서버 i18n 조회. lang 미지정 시 SLACK_LANG(Slack 알림 기준), 지정 시 그 언어(예: 메뉴=MENU_LANG).
+ * @param {string} key
+ * @param {Object} [data]
+ * @param {string} [lang] 'ko'|'en' — 오버라이드(메뉴 등)
+ */
+function nt(key, data, lang) {
+  if (!lang) {
+    try {
+      lang = getConfig().slackLang;
+    } catch (e) {
+      lang = 'ko';
+    }
   }
   const d = SLACK_MSG[lang] || SLACK_MSG.ko;
   let v = d[key];
