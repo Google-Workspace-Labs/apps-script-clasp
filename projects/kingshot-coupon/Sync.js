@@ -186,7 +186,7 @@ function syncFail_(reason, isManual) {
   } catch (e) {
     // 로깅/알림 실패도 무시 — 격리 원칙
   }
-  return { ok: false, isManual: isManual === true, message: `❌ 동기화 실패: ${reason}` };
+  return { ok: false, isManual: isManual === true, code: 'sync_fail', data: { reason } };
 }
 
 /**
@@ -226,7 +226,7 @@ function removeSyncTrigger_() {
 function apiSetAutoSync(enabled, password) {
   return safeApi_('apiSetAutoSync', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     const props = PropertiesService.getScriptProperties();
     const prev = props.getProperty('AUTO_SYNC_ENABLED') === 'true';
@@ -255,7 +255,8 @@ function apiSetAutoSync(enabled, password) {
     return {
       ok: true,
       enabled: on,
-      message: `✅ 자동 동기화: ${fmt(prev).toUpperCase()} → ${fmt(on).toUpperCase()}`,
+      code: 'autosync_set',
+      data: { prev, on },
     };
   });
 }
@@ -264,7 +265,7 @@ function apiSetAutoSync(enabled, password) {
 function apiRunSyncNow(password) {
   return safeApi_('apiRunSyncNow', () => {
     if (!checkDatePassword_(password)) {
-      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+      return { ok: false, code: 'bad_pw' };
     }
     touchManage_();
     return runCouponSync_(true);

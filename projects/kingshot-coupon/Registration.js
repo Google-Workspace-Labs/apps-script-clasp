@@ -217,13 +217,13 @@ function apiLookupPlayer(fid) {
   return safeApi_('apiLookupPlayer', () => {
     const clean = String(fid || '').trim();
     if (!/^\d+$/.test(clean)) {
-      return { ok: false, message: '❌ ID 는 숫자만 가능합니다.' };
+      return { ok: false, code: 'id_numeric' };
     }
 
     const login = loginPlayer(clean);
     if (!login.ok) {
       const reason = login.rateLimited ? '일시적 제한(429) — 잠시 후 다시' : login.message;
-      return { ok: false, message: `❌ 조회 실패: ${reason}` };
+      return { ok: false, code: 'lookup_fail', data: { reason } };
     }
 
     const existing = findUser_(clean);
@@ -273,7 +273,7 @@ function apiToggleUser(fid, password) {
     }
     const user = findUser_(fid);
     if (!user) {
-      return { ok: false, message: `ID ${String(fid).trim()} 를 찾을 수 없습니다.` };
+      return { ok: false, code: 'user_not_found', data: { fid: String(fid).trim() } };
     }
     const prev = user.active;
     const next = !user.active;
@@ -317,7 +317,7 @@ function apiToggleCoupon(code, password) {
     }
     const c = findCoupon_(code);
     if (!c) {
-      return { ok: false, message: `쿠폰 ${String(code).trim()} 를 찾을 수 없습니다.` };
+      return { ok: false, code: 'coupon_not_found', data: { code: String(code).trim() } };
     }
     const prev = c.enabled;
     const next = !c.enabled;
@@ -452,10 +452,10 @@ function apiSetSlackWebhook(url, password) {
       invalidateConfigCache_();
       touchManage_();
       logSystem_('INFO', 'settings-slack-url', 'webhook cleared', '');
-      return { ok: true, message: '✅ Slack 웹훅 해제됨', slackSet: false };
+      return { ok: true, code: 'slack_cleared', slackSet: false };
     }
     if (!/^https:\/\//.test(u) || !/hooks\.slack\.com\/services\//.test(u)) {
-      return { ok: false, message: '❌ 올바른 Slack 웹훅 URL이 아닙니다.' };
+      return { ok: false, code: 'slack_invalid_url' };
     }
     props.setProperty('SLACK_WEBHOOK_URL', u);
     props.setProperty('SLACK_ENABLED', 'true');
@@ -472,7 +472,7 @@ function apiSetSlackWebhook(url, password) {
       },
       'webhook',
     );
-    return { ok: true, message: '✅ Slack 웹훅 저장됨 (테스트 알림 전송)', slackSet: true };
+    return { ok: true, code: 'slack_saved', slackSet: true };
   });
 }
 
@@ -485,7 +485,7 @@ function apiSetSlackEnabled(enabled, password) {
     const props = PropertiesService.getScriptProperties();
     const on = enabled === true || enabled === 'true';
     if (on && !props.getProperty('SLACK_WEBHOOK_URL')) {
-      return { ok: false, message: '❌ 먼저 Webhook URL을 저장하세요.' };
+      return { ok: false, code: 'slack_no_url' };
     }
 
     // 이전 상태 — Slack/로그 메시지의 화살표 좌측에 들어감 (default !== 'false' → 기본 ON)
@@ -522,7 +522,7 @@ function apiSetSlackEnabled(enabled, password) {
       touchManage_();
       logSystem_('INFO', 'settings-slack-on', `slack: ${fmt(prevOn)} → ${fmt(on)}`, '');
     }
-    return { ok: true, enabled: on, message: `✅ Slack: ${fmt(prevOn)} → ${fmt(on)}` };
+    return { ok: true, enabled: on, code: 'slack_set', data: { prev: prevOn, on } };
   });
 }
 
@@ -544,7 +544,7 @@ function apiSetNotify(category, enabled, password) {
       return { ok: false, code: 'bad_pw' };
     }
     if (NOTIFY_CATEGORIES.indexOf(category) < 0) {
-      return { ok: false, message: `❌ 알 수 없는 카테고리: ${category}` };
+      return { ok: false, code: 'unknown_category', data: { category } };
     }
     const props = PropertiesService.getScriptProperties();
     // 기본값 ON (!== 'false') — Property 미존재면 prev=true
@@ -559,7 +559,8 @@ function apiSetNotify(category, enabled, password) {
       ok: true,
       category,
       enabled: on,
-      message: `✅ 알림[${category}]: ${fmt(prev).toUpperCase()} → ${fmt(on).toUpperCase()}`,
+      code: 'notify_set',
+      data: { category, prev, on },
     };
   });
 }
@@ -596,7 +597,7 @@ function apiSetCouponTtl(days, password) {
     }
     const n = parseInt(days, 10);
     if (isNaN(n) || n < 0 || n > 365) {
-      return { ok: false, message: '❌ 0~365 사이 숫자를 입력하세요.' };
+      return { ok: false, code: 'ttl_range' };
     }
     const props = PropertiesService.getScriptProperties();
     const prevRaw = props.getProperty('KINGSHOT_COUPON_TTL_DAYS');
@@ -623,7 +624,8 @@ function apiSetCouponTtl(days, password) {
     return {
       ok: true,
       ttlDays: n,
-      message: `✅ TTL: ${fmtKr(prevN)} → ${fmtKr(n)}`,
+      code: 'ttl_set',
+      data: { prev: prevN, n },
     };
   });
 }
@@ -636,7 +638,7 @@ function apiDeleteUser(fid, password) {
     }
     const user = findUser_(fid);
     if (!user) {
-      return { ok: false, message: `ID ${String(fid).trim()} 를 찾을 수 없습니다.` };
+      return { ok: false, code: 'user_not_found', data: { fid: String(fid).trim() } };
     }
     const removedNick = user.nickname || '(닉네임 없음)';
     const cleanFid = String(fid).trim();
@@ -665,7 +667,8 @@ function apiDeleteUser(fid, password) {
     );
     return {
       ok: true,
-      message: `🗑️ 삭제 완료: ${removedNick} (ID ${cleanFid}) — ${before} → ${after}명 · logs ${purgedLogs}건 정리`,
+      code: 'user_deleted',
+      data: { nick: removedNick || '', fid: cleanFid, before, after, logs: purgedLogs },
     };
   });
 }
@@ -730,7 +733,7 @@ function registerUserByFid_(fid) {
 function registerCouponNow_(codeRaw) {
   const code = String(codeRaw || '').trim();
   if (!code) {
-    return { ok: false, message: '❌ 쿠폰 코드를 입력하세요.' };
+    return { ok: false, code: 'coupon_need_code' };
   }
 
   // 캐시 히트 — 이미 시트에 같은 코드가 있으면 API 호출 없이 즉시 처리
@@ -738,18 +741,20 @@ function registerCouponNow_(codeRaw) {
   if (existing) {
     const s = String(existing.status || '').toUpperCase();
     if (s === 'EXPIRED' || s === 'EXPIRED_AGE') {
-      return { ok: false, message: `❌ 만료된 코드: ${code} (이전 확인됨 · API 없이 차단)` };
+      return { ok: false, code: 'coupon_expired_cached', data: { code } };
     }
     if (s === 'INVALID_CODE') {
-      return { ok: false, message: `❌ 존재하지 않는 코드: ${code} (이전 확인됨 · API 없이 차단)` };
+      return { ok: false, code: 'coupon_invalid_cached', data: { code } };
     }
     // VALID/PENDING 등 살아있는 상태
-    return { ok: false, message: `ℹ️ 이미 등록된 쿠폰: ${code}` };
+    return { ok: false, code: 'coupon_dup', data: { code } };
   }
 
   // 단건 검증 (긴 대기 없는 단일 시도)
   let status = 'PENDING';
-  let note = '검증 안 함(유저 없음)';
+  let note = '검증 안 함(유저 없음)'; // Slack 알림용(배포자 언어, Phase 2)
+  let nc = 'no_user'; // 클라 표시용 noteCode: no_user | ok | pending
+  let nr = ''; // pending 사유
   const validateFid = getValidateFid_();
   if (validateFid) {
     const login = loginPlayer(validateFid);
@@ -771,7 +776,8 @@ function registerCouponNow_(codeRaw) {
         return {
           ok: false,
           sheetUpdated: true,
-          message: `❌ 존재하지 않는 코드(CDK NOT FOUND): ${code} — 시트에 기록(향후 자동 차단)`,
+          code: 'coupon_invalid_new',
+          data: { code },
         };
       }
       if (r.result === 'EXPIRED') {
@@ -789,17 +795,23 @@ function registerCouponNow_(codeRaw) {
         return {
           ok: false,
           sheetUpdated: true,
-          message: `❌ 만료된 코드(TIME ERROR): ${code} — 시트에 기록(향후 자동 차단)`,
+          code: 'coupon_expired_new',
+          data: { code },
         };
       }
       if (r.result === 'SUCCESS' || r.result === 'ALREADY_USED') {
         status = 'VALID';
         note = '검증 OK';
+        nc = 'ok';
       } else {
         note = `검증 보류(${r.result})`;
+        nc = 'pending';
+        nr = r.result;
       }
     } else {
       note = login.rateLimited ? '검증 보류(429)' : `검증 보류(${login.message})`;
+      nc = 'pending';
+      nr = login.rateLimited ? '429' : login.message;
     }
   }
 
@@ -831,7 +843,8 @@ function registerCouponNow_(codeRaw) {
   return {
     ok: true,
     sheetUpdated: true,
-    message: `✅ 쿠폰 등록: ${code} [${status}, ${note}]\n곧 배치가 백그라운드로 실행되며, 결과는 Slack 으로 알립니다.`,
+    code: 'coupon_registered',
+    data: { code, status, nc, nr },
   };
 }
 
@@ -861,7 +874,7 @@ function apiRunBatchNow(password) {
     );
     return {
       ok: true,
-      message: '⚡ 배치 예약됨 — 약 30초 안에 실행되고 결과는 Slack 으로 알립니다.',
+      code: 'batch_scheduled',
     };
   });
 }
@@ -879,7 +892,7 @@ function apiCleanInvalidCoupons(password) {
     const res = purgeInvalidCoupons_();
     touchManage_();
     if (res.coupons === 0) {
-      return { ok: true, removed: 0, message: 'ℹ️ 정리할 오타 코드가 없습니다.' };
+      return { ok: true, removed: 0, code: 'clean_none' };
     }
     logSystem_(
       'INFO',
@@ -900,7 +913,8 @@ function apiCleanInvalidCoupons(password) {
     return {
       ok: true,
       removed: res.coupons,
-      message: `✅ 오타 코드 ${res.coupons}건 삭제 · logs ${res.logs}건 정리`,
+      code: 'clean_done',
+      data: { coupons: res.coupons, logs: res.logs },
     };
   });
 }
