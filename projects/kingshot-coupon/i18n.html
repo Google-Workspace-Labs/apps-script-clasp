@@ -30,6 +30,8 @@
           sync_idle: '아직 실행 안 됨',
           m_slack: '💬 Slack 알림',
           m_slack_main: '(주채널)',
+          m_slack_lang: '💬 Slack 알림 언어',
+          m_slack_lang_hint: '알림 전송 언어 (배포자 설정)',
           ph_webhook: 'Webhook URL 붙여넣기',
           slack_help: '❓ Slack Webhook URL 설정 방법',
           btn_copy: '📋 복사',
@@ -145,6 +147,7 @@
           srv_sync_fail: (d) => `❌ 동기화 실패: ${d.reason}`,
           srv_autosync_set: (d) =>
             `✅ 자동 동기화: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+          srv_slack_lang_set: (d) => `✅ Slack 알림 언어: ${d.lang === 'en' ? 'English' : '한국어'}`,
         },
         en: {
           title: 'Coupon Redemption',
@@ -175,6 +178,8 @@
           sync_idle: 'Not run yet',
           m_slack: '💬 Slack alerts',
           m_slack_main: '(main)',
+          m_slack_lang: '💬 Slack alert language',
+          m_slack_lang_hint: 'language for alerts (deployer setting)',
           ph_webhook: 'Paste Webhook URL',
           slack_help: '❓ How to set up Slack Webhook URL',
           btn_copy: '📋 Copy',
@@ -289,6 +294,7 @@
           srv_clean_done: (d) => `✅ Removed ${d.coupons} typo code(s) · ${d.logs} logs cleaned`,
           srv_sync_fail: (d) => `❌ Sync failed: ${d.reason}`,
           srv_autosync_set: (d) => `✅ Auto-sync: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
+          srv_slack_lang_set: (d) => `✅ Slack alert language: ${d.lang === 'en' ? 'English' : 'Korean'}`,
         },
       };
 </script>

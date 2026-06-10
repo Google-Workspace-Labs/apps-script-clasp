@@ -864,6 +864,17 @@
 
           <div class="srow-head" style="margin-top: 14px">
             <span class="slabel" style="margin: 0">
+              <span data-i18n="m_slack_lang">💬 Slack 알림 언어</span>
+              <span class="shint" data-i18n="m_slack_lang_hint">알림 전송 언어 (배포자 설정)</span>
+            </span>
+            <div class="mfilter">
+              <button id="slLangKo" class="chip on" onclick="setSlackLang('ko')">KO</button>
+              <button id="slLangEn" class="chip" onclick="setSlackLang('en')">EN</button>
+            </div>
+          </div>
+
+          <div class="srow-head" style="margin-top: 14px">
+            <span class="slabel" style="margin: 0">
               <span data-i18n="m_notify">🔔 알림 카테고리</span>
               <span class="shint" data-i18n="m_notify_hint">기본 모두 ON — 필요 없는 항목은 끄세요</span>
             </span>
@@ -1629,6 +1640,10 @@
       function updateChannelUI(res) {
         $('slSwitch').checked = !!res.slackEnabled;
         $('slStatus').textContent = res.slackSet ? '' : t('url_not_set');
+        // Slack 알림 언어(배포자 설정) 버튼 상태
+        const sl = res.slackLang || 'ko';
+        $('slLangKo').classList.toggle('on', sl === 'ko');
+        $('slLangEn').classList.toggle('on', sl === 'en');
         // 자동 쿠폰 동기화 상태
         $('syncSwitch').checked = !!res.autoSyncEnabled;
         $('syncLast').textContent = res.lastSync
@@ -1837,6 +1852,25 @@
             mgFlash('⚠️ ' + errMsg(e));
           })
           .apiSetSlackEnabled(cb.checked, pw);
+      }
+
+      // Slack 알림 언어(배포자 설정) — 접속자 토글과 무관, 비번 게이트
+      function setSlackLang(lang) {
+        const pw = requirePw();
+        if (!pw) return;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.ok) {
+              const sl = res.slackLang || 'ko';
+              $('slLangKo').classList.toggle('on', sl === 'ko');
+              $('slLangEn').classList.toggle('on', sl === 'en');
+            }
+            mgFlash(srvMsg_(res));
+          })
+          .withFailureHandler(function (e) {
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiSetSlackLang(lang, pw);
       }
 
       function toggleSlHelp() {

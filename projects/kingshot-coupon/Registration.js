@@ -399,6 +399,7 @@ function apiListManage() {
       lastBatch: props.getProperty('LAST_BATCH_AT') || '', // 배치 신선도 표시용
       slackSet: !!config.slackWebhookUrl, // URL 자체는 노출하지 않음(비밀)
       slackEnabled: !!config.slackWebhookUrl && config.slackEnabled,
+      slackLang: config.slackLang, // Slack 알림 언어(배포자 설정)
       notify: {
         batch: !!config.notify.batch,
         schedule: !!config.notify.schedule,
@@ -523,6 +524,21 @@ function apiSetSlackEnabled(enabled, password) {
       logSystem_('INFO', 'settings-slack-on', `slack: ${fmt(prevOn)} → ${fmt(on)}`, '');
     }
     return { ok: true, enabled: on, code: 'slack_set', data: { prev: prevOn, on } };
+  });
+}
+
+/** Slack 알림 언어 설정(배포자 언어, 비밀번호 필요). lang: 'ko' | 'en'. */
+function apiSetSlackLang(lang, password) {
+  return safeApi_('apiSetSlackLang', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, code: 'bad_pw' };
+    }
+    const v = lang === 'en' ? 'en' : 'ko';
+    PropertiesService.getScriptProperties().setProperty('SLACK_LANG', v);
+    invalidateConfigCache_();
+    touchManage_();
+    logSystem_('INFO', 'settings-slack-lang', `slackLang → ${v}`, '');
+    return { ok: true, slackLang: v, code: 'slack_lang_set', data: { lang: v } };
   });
 }
 
