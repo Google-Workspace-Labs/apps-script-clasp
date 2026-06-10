@@ -132,7 +132,12 @@ function runCouponSync_(isManual) {
       (registered.length ? ` (${registered.join(', ')})` : '') +
       (rejected.length ? ` · 거부/보류 ${rejected.length}건` : '') +
       ` · 후보 ${candidates.length}`;
-    stampSync_(startedAt, `OK · ${summary}`);
+    stampSync_(startedAt, {
+      ok: true,
+      n: registered.length,
+      rej: rejected.length,
+      cand: candidates.length,
+    });
     logSystem_('INFO', 'sync', summary, '');
 
     if (registered.length) {
@@ -166,7 +171,7 @@ function runCouponSync_(isManual) {
 function syncFail_(reason, isManual) {
   const now = new Date();
   try {
-    stampSync_(now, `FAIL · ${reason}`);
+    stampSync_(now, { ok: false, reason: String(reason).slice(0, 150) });
     logSystem_('WARN', 'sync', `동기화 실패: ${reason}`, '');
     notify_(
       {
@@ -184,11 +189,18 @@ function syncFail_(reason, isManual) {
   return { ok: false, isManual: isManual === true, message: `❌ 동기화 실패: ${reason}` };
 }
 
-/** 마지막 동기화 시각/결과를 Script Property 에 기록 */
+/**
+ * 마지막 동기화 시각/결과를 Script Property 에 기록.
+ * 결과는 **구조화(JSON)** 로 저장 → 웹 UI(클라이언트)가 접속자 언어로 직접 포맷한다.
+ *   성공: { ok:true, n:<신규수>, rej:<거부수>, cand:<후보수> }
+ *   실패: { ok:false, reason:<사유> }
+ * @param {Date} date
+ * @param {Object} result
+ */
 function stampSync_(date, result) {
   const props = PropertiesService.getScriptProperties();
   props.setProperty('LAST_SYNC_AT', Utilities.formatDate(date, 'Asia/Seoul', 'yyyy-MM-dd HH:mm'));
-  props.setProperty('LAST_SYNC_RESULT', String(result).slice(0, 200));
+  props.setProperty('LAST_SYNC_RESULT', JSON.stringify(result).slice(0, 300));
 }
 
 // ============================================================
