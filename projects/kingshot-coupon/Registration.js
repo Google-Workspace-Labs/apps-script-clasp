@@ -35,8 +35,45 @@
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('Kingshot 등록')
+    .setTitle('Kingshot')
+    .setFaviconUrl(faviconUrl_())
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/**
+ * 탭 favicon URL 결정 — 킹샷 공식 favicon 우선, 가져올 수 없으면 👑 이모지(SVG)로 폴백.
+ *  - setFaviconUrl 은 단일 URL이라 브라우저 자동 폴백이 없으므로, 서버에서 가용성 확인 후 선택.
+ *  - 결과는 6시간 캐시 → doGet 마다 외부 요청 안 함(첫 1회/만료 후만 확인). 실패해도 앱엔 무영향.
+ */
+function faviconUrl_() {
+  const KS = 'https://ks-giftcode.centurygame.com/favicon.ico';
+  const CROWN =
+    'data:image/svg+xml,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+        '<text x="50" y="54" font-size="80" text-anchor="middle" dominant-baseline="central">👑</text>' +
+        '</svg>',
+    );
+  try {
+    const cache = CacheService.getScriptCache();
+    const flag = cache.get('FAVICON_KS_OK');
+    if (flag === '1') {
+      return KS;
+    }
+    if (flag === '0') {
+      return CROWN;
+    }
+    const code = UrlFetchApp.fetch(KS, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+    }).getResponseCode();
+    const ok = code >= 200 && code < 400;
+    cache.put('FAVICON_KS_OK', ok ? '1' : '0', 21600); // 6시간
+    return ok ? KS : CROWN;
+  } catch (e) {
+    // 확인 실패(네트워크 등) → 안전하게 👑 폴백
+    return CROWN;
+  }
 }
 
 // ============================================================

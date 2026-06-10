@@ -1090,6 +1090,23 @@
           .apiRegisterUser(currentFid);
       }
 
+      // 관리 탭에서 토글/삭제한 유저가 '등록 영역에 떠 있는 그 유저(currentFid)'면,
+      // 등록 카드 스냅샷이 stale 해지므로 카드를 리셋한다.
+      // currentFid 일치할 때만 — 무관한 유저 액션엔 등록 흐름을 건드리지 않는다.
+      function resetUserLookupIfFid_(fid) {
+        if (!currentFid || String(fid) !== String(currentFid)) {
+          return;
+        }
+        currentFid = '';
+        $('userProfile').style.display = 'none';
+        $('registerBtn').style.display = 'none';
+        $('registerBtn').disabled = false;
+        $('registerBtn').textContent = '등록';
+        const el = $('userResult');
+        el.className = 'result';
+        el.textContent = 'ℹ️ 이 유저 상태가 변경되어 조회를 초기화했어요. 다시 조회해 주세요.';
+      }
+
       // ── 쿠폰 등록 ──
       function submitCoupon() {
         const code = $('code').value.trim();
@@ -1309,6 +1326,7 @@
               return;
             }
             mgFlash(res.message);
+            resetUserLookupIfFid_(fid);
             loadManage();
           })
           .withFailureHandler(function (e) {
@@ -1348,7 +1366,10 @@
         google.script.run
           .withSuccessHandler(function (res) {
             mgFlash(res && res.message);
-            if (res && res.ok) loadManage();
+            if (res && res.ok) {
+              resetUserLookupIfFid_(fid);
+              loadManage();
+            }
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));

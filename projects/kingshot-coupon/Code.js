@@ -247,7 +247,7 @@ function writeGuideSheet_(ss) {
   sheet
     .getRange('A2:F2')
     .merge()
-    .setValue('아래 2단계를 마치면 사용 준비 완료입니다.')
+    .setValue('아래 2단계를 마치면 사용 준비 완료 — 3️⃣ 은 선택입니다.')
     .setFontSize(11)
     .setFontColor('#555')
     .setHorizontalAlignment('center');
@@ -363,15 +363,57 @@ function writeGuideSheet_(ss) {
     .setValue('⑦ [🛠 관리] 패널 설정 변경은 🔑 비밀번호(오늘 MMDD 4자리) 필요')
     .setFontSize(11);
 
-  // Footer
+  // Step 3 (선택)
   sheet
     .getRange('A23:F23')
+    .merge()
+    .setValue('3️⃣  (선택) 자동 쿠폰 동기화')
+    .setFontSize(13)
+    .setFontWeight('bold')
+    .setBackground('#fffdf6')
+    .setFontColor('#7a5c00');
+  sheet.setRowHeight(23, 32);
+
+  sheet
+    .getRange('A24:F24')
+    .merge()
+    .setValue(
+      '⑧ 외부 커뮤니티 사이트의 신규 쿠폰을 자동 등록하려면 [🛠 관리] 탭에서 자동 쿠폰 동기화 ON',
+    )
+    .setFontSize(11);
+  sheet
+    .getRange('A25:F25')
+    .merge()
+    .setValue('     (또는 메뉴 [👑 Kingshot Bot ▸ 🔄 동기화 ▸ 자동 동기화 ON/OFF])')
+    .setFontSize(10)
+    .setFontColor('#555');
+  sheet
+    .getRange('A26:F26')
+    .merge()
+    .setValue('⑨ 복사본마다 기본 꺼짐 — 켜야 본인 시트에 동기화 트리거가 설치됩니다')
+    .setFontSize(11);
+  sheet
+    .getRange('A27:F27')
+    .merge()
+    .setValue(
+      '⑩ 자동이 켜져 있든 꺼져 있든 수동 등록은 항상 안전 — 외부 사이트가 바뀌거나 멈춰도 수동·배치엔 영향 없음',
+    )
+    .setFontSize(11);
+  sheet
+    .getRange('A28:F28')
+    .merge()
+    .setFormula('=HYPERLINK("https://kingshotdata.kr", "🔗 쿠폰 출처(참고): kingshotdata.kr")')
+    .setFontSize(10);
+
+  // Footer
+  sheet
+    .getRange('A30:F30')
     .merge()
     .setValue('🪄 onboarding 끝나면 이 시트는 탭 우클릭 → "Delete sheet" 로 삭제해도 OK')
     .setFontSize(10)
     .setFontColor('#888')
     .setHorizontalAlignment('center');
-  sheet.setRowHeight(23, 26);
+  sheet.setRowHeight(30, 26);
 
   // 격자선 숨김 — 안내 카드 느낌으로
   sheet.setHiddenGridlines(true);
