@@ -298,7 +298,7 @@ function apiToggleUser(fid, password) {
     );
     notify_(
       {
-        title: `🔁 ${nick}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+        title: nt('user_toggle_t', { nick: user.nickname || '', prev, next }),
         description: `🆔 \`${cleanFid}\``,
         color: next ? NOTIFY_COLORS.green : NOTIFY_COLORS.gray,
         timestamp: new Date().toISOString(),
@@ -309,7 +309,8 @@ function apiToggleUser(fid, password) {
     return {
       ok: true,
       active: next,
-      message: `✅ ${nick}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+      code: 'user_toggled',
+      data: { nick: user.nickname || '', prev, next },
     };
   });
 }
@@ -341,7 +342,7 @@ function apiToggleCoupon(code, password) {
     );
     notify_(
       {
-        title: `🔁 ${cleanCode}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+        title: nt('coupon_toggle_t', { code: cleanCode, prev, next }),
         description: '',
         color: next ? NOTIFY_COLORS.green : NOTIFY_COLORS.gray,
         timestamp: new Date().toISOString(),
@@ -352,7 +353,8 @@ function apiToggleCoupon(code, password) {
     return {
       ok: true,
       enabled: next,
-      message: `✅ ${cleanCode}: ${fmtKr(prev)} → ${fmtKr(next)}`,
+      code: 'coupon_toggled',
+      data: { code: cleanCode, prev, next },
     };
   });
 }

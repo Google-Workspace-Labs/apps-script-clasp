@@ -112,6 +112,10 @@
           srv_lookup_fail: (d) => `❌ 조회 실패: ${d.reason}`,
           srv_user_not_found: (d) => `ID ${d.fid} 를 찾을 수 없습니다.`,
           srv_coupon_not_found: (d) => `쿠폰 ${d.code} 를 찾을 수 없습니다.`,
+          srv_user_toggled: (d) =>
+            `✅ ${d.nick || t('no_nick')}: ${d.prev ? '활성' : '비활성'} → ${d.next ? '활성' : '비활성'}`,
+          srv_coupon_toggled: (d) =>
+            `✅ ${d.code}: ${d.prev ? '활성' : '비활성'} → ${d.next ? '활성' : '비활성'}`,
           srv_slack_cleared: '✅ Slack 웹훅 해제됨',
           srv_slack_invalid_url: '❌ 올바른 Slack 웹훅 URL이 아닙니다.',
           srv_slack_saved: '✅ Slack 웹훅 저장됨 (테스트 알림 전송)',
@@ -179,7 +183,7 @@
           m_slack: '💬 Slack alerts',
           m_slack_main: '(main)',
           m_slack_lang: '💬 Slack alert language',
-          m_slack_lang_hint: 'language for alerts (deployer setting)',
+          m_slack_lang_hint: 'deployer setting',
           ph_webhook: 'Paste Webhook URL',
           slack_help: '❓ How to set up Slack Webhook URL',
           btn_copy: '📋 Copy',
@@ -259,6 +263,10 @@
           srv_lookup_fail: (d) => `❌ Lookup failed: ${d.reason}`,
           srv_user_not_found: (d) => `ID ${d.fid} not found.`,
           srv_coupon_not_found: (d) => `Coupon ${d.code} not found.`,
+          srv_user_toggled: (d) =>
+            `✅ ${d.nick || t('no_nick')}: ${d.prev ? 'active' : 'inactive'} → ${d.next ? 'active' : 'inactive'}`,
+          srv_coupon_toggled: (d) =>
+            `✅ ${d.code}: ${d.prev ? 'enabled' : 'disabled'} → ${d.next ? 'enabled' : 'disabled'}`,
           srv_slack_cleared: '✅ Slack webhook removed',
           srv_slack_invalid_url: '❌ Not a valid Slack webhook URL.',
           srv_slack_saved: '✅ Slack webhook saved (test alert sent)',

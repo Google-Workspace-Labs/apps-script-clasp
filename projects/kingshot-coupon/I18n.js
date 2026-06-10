@@ -56,6 +56,10 @@ const SLACK_MSG = {
     user_del_t: '🗑️ 유저 삭제 완료',
     user_del_d: (d) =>
       `🏷️ **${d.nick || '(닉네임 없음)'}**\n🆔 \`${d.fid}\`  ·  👥 ${d.before} → ${d.after}명\n🧹 logs ${d.logs}건 정리`,
+    user_toggle_t: (d) =>
+      `🔁 ${d.nick || '(닉네임 없음)'}: ${d.prev ? '활성' : '비활성'} → ${d.next ? '활성' : '비활성'}`,
+    coupon_toggle_t: (d) =>
+      `🔁 ${d.code}: ${d.prev ? '활성' : '비활성'} → ${d.next ? '활성' : '비활성'}`,
     cpn_invalid_t: '🎟 쿠폰 등록 거부 (존재 X)',
     cpn_invalid_d: (d) => `\`${d.code}\` — INVALID_CODE, dead code 캐시 기록`,
     cpn_expired_t: '🎟 쿠폰 등록 거부 (만료)',
@@ -123,6 +127,10 @@ const SLACK_MSG = {
     user_del_t: '🗑️ User deleted',
     user_del_d: (d) =>
       `🏷️ **${d.nick || '(no nickname)'}**\n🆔 \`${d.fid}\`  ·  👥 ${d.before} → ${d.after}\n🧹 ${d.logs} logs cleaned`,
+    user_toggle_t: (d) =>
+      `🔁 ${d.nick || '(no nickname)'}: ${d.prev ? 'active' : 'inactive'} → ${d.next ? 'active' : 'inactive'}`,
+    coupon_toggle_t: (d) =>
+      `🔁 ${d.code}: ${d.prev ? 'enabled' : 'disabled'} → ${d.next ? 'enabled' : 'disabled'}`,
     cpn_invalid_t: '🎟 Coupon rejected (nonexistent)',
     cpn_invalid_d: (d) => `\`${d.code}\` — INVALID_CODE, dead-code cached`,
     cpn_expired_t: '🎟 Coupon rejected (expired)',
