@@ -365,6 +365,25 @@ function apiListManage() {
 }
 
 /**
+ * 연동된 스프레드시트(시트) URL 반환 — 'Entry (DB)' 바로가기용.
+ *  - 웹앱이 익명(ANYONE_ANONYMOUS) 접근이라 서버가 접속자를 식별할 수 없음 → 신원확인 불가.
+ *    따라서 비밀번호(오늘 MMDD)로 가벼운 게이트만 건다.
+ *  - 비번은 약한 잠금이지만, 실제 시트 진입은 **구글 시트 공유 권한**이 다시 통제한다.
+ *    → 권한 없는 지인은 URL 을 받아도 구글이 "액세스 요청" 벽으로 차단(진짜 자물쇠).
+ * @returns {{ok:boolean, url?:string, message:string}}
+ */
+function apiGetSheetUrl(password) {
+  return safeApi_('apiGetSheetUrl', () => {
+    if (!checkDatePassword_(password)) {
+      return { ok: false, message: '❌ 비밀번호가 올바르지 않습니다.' };
+    }
+    const url = SpreadsheetApp.getActiveSpreadsheet().getUrl();
+    logSystem_('INFO', 'db-entry', 'web — Entry(DB) 열기', '');
+    return { ok: true, url, message: '' };
+  });
+}
+
+/**
  * Slack Webhook URL 설정/해제 (비밀번호 필요).
  * 저장 시 자동 ON + 테스트 메시지 전송. URL 자체는 반환하지 않음(비밀).
  * URL 형태: https://hooks.slack.com/services/T.../B.../...
