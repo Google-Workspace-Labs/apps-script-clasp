@@ -96,18 +96,18 @@ function onOpen() {
 
   const runMenu = ui
     .createMenu(nt('mn_run', null, ml))
-    .addItem('Run Coupon Batch', 'runCouponBatch')
-    .addItem('Test Single Coupon', 'testSingleCoupon');
+    .addItem(nt('mn_run_batch', null, ml), 'runCouponBatch')
+    .addItem(nt('mn_test_coupon', null, ml), 'testSingleCoupon');
 
   const manageMenu = ui
     .createMenu(nt('mn_manage', null, ml))
-    .addItem('Deactivate User', 'deactivateUser')
-    .addItem('Delete User', 'deleteUser')
-    .addItem('Clean Duplicate Users', 'cleanDuplicateUsers')
+    .addItem(nt('mn_deactivate', null, ml), 'deactivateUser')
+    .addItem(nt('mn_delete_user', null, ml), 'deleteUser')
+    .addItem(nt('mn_clean_dup', null, ml), 'cleanDuplicateUsers')
     .addSeparator()
-    .addItem('Clean Expired Logs', 'cleanExpiredLogs')
+    .addItem(nt('mn_clean_logs', null, ml), 'cleanExpiredLogs')
     .addItem(nt('mn_clean_invalid', null, ml), 'cleanInvalidCoupons')
-    .addItem('Clear System Logs', 'clearSystemLogs');
+    .addItem(nt('mn_clear_syslogs', null, ml), 'clearSystemLogs');
 
   const syncMenu = ui
     .createMenu(nt('mn_sync', null, ml))
@@ -116,7 +116,7 @@ function onOpen() {
 
   const diagMenu = ui
     .createMenu(nt('mn_diag', null, ml))
-    .addItem('Diagnose Dedup', 'diagnoseDedup');
+    .addItem(nt('mn_diagnose', null, ml), 'diagnoseDedup');
 
   // 🌐 언어 — 시트(진입점)에서 직접 배포자 언어 변경. 웹앱 배포 전에도 가능(모순 해소).
   // 라벨은 이중언어로 고정(어느 기본 언어에서든 인식 가능).
