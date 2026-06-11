@@ -270,23 +270,19 @@ function setupSheetsSilently_() {
  */
 function writeGuideSheet_(ss) {
   const sheet = ss.insertSheet(GUIDE_SHEET_NAME, 0);
+  // 좌측 영어(A:F) | 간격 G | 우측 한국어(H:M)
   sheet.setColumnWidth(1, 28);
   for (let c = 2; c <= 6; c++) {
     sheet.setColumnWidth(c, 150);
   }
+  sheet.setColumnWidth(7, 22);
+  sheet.setColumnWidth(8, 28);
+  for (let c = 9; c <= 13; c++) {
+    sheet.setColumnWidth(c, 150);
+  }
 
-  // 이중언어 한 셀: 영어 줄 + 한국어 줄 (기본 EN 우선). r 카운터로 순차 작성.
-  const bl = (en, ko) => en + '\n' + ko;
   let r = 0;
-  const put = (text, o) => {
-    r++;
-    o = o || {};
-    const rng = sheet.getRange(r, 1, 1, 6).merge();
-    if (o.formula) {
-      sheet.getRange(r, 1).setFormula(text);
-    } else {
-      rng.setValue(text);
-    }
+  const style = (rng, o) => {
     rng.setWrap(true).setVerticalAlignment('middle');
     if (o.size) rng.setFontSize(o.size);
     if (o.bold) rng.setFontWeight('bold');
@@ -294,219 +290,197 @@ function writeGuideSheet_(ss) {
     if (o.color) rng.setFontColor(o.color);
     if (o.italic) rng.setFontStyle('italic');
     if (o.center) rng.setHorizontalAlignment('center');
-    sheet.setRowHeight(r, o.h || 38);
+  };
+  // 좌=영어(A:F), 우=한국어(H:M), 같은 행
+  const row = (en, ko, o) => {
+    r++;
+    o = o || {};
+    const L = sheet.getRange(r, 1, 1, 6).merge();
+    const R = sheet.getRange(r, 8, 1, 6).merge();
+    if (o.formula) {
+      sheet.getRange(r, 1).setFormula(en);
+      sheet.getRange(r, 8).setFormula(ko);
+    } else {
+      L.setValue(en);
+      R.setValue(ko);
+    }
+    style(L, o);
+    style(R, o);
+    sheet.setRowHeight(r, o.h || 24);
+  };
+  // 전체폭 A:M
+  const full = (text, o) => {
+    r++;
+    o = o || {};
+    style(sheet.getRange(r, 1, 1, 13).merge().setValue(text), o);
+    sheet.setRowHeight(r, o.h || 24);
   };
   const gap = (h) => {
     r++;
     sheet.setRowHeight(r, h || 8);
   };
 
-  // 타이틀
-  put('👑 Kingshot Bot — Getting Started / 시작 가이드', {
+  full('👑 Kingshot Bot — Getting Started / 시작 가이드', {
     size: 16,
     bold: true,
     bg: '#b8860b',
     color: '#ffffff',
     center: true,
-    h: 46,
+    h: 44,
   });
-  put(
-    bl(
-      'Finish the 2 steps below to be ready — 3️⃣ is optional.',
-      '아래 2단계면 준비 완료 — 3️⃣ 은 선택',
-    ),
-    { size: 10, color: '#555', center: true, h: 34 },
+  row(
+    'Finish the 2 steps below to be ready — 3️⃣ is optional.',
+    '아래 2단계면 준비 완료 — 3️⃣ 은 선택',
+    {
+      size: 10,
+      color: '#555',
+      center: true,
+    },
   );
   gap();
 
-  // 0️⃣ 언어 선택 (가장 먼저)
-  put(bl('0️⃣  Choose your language', '0️⃣  언어 선택'), {
+  row('0️⃣  Choose your language', '0️⃣  언어 선택', {
     size: 12,
     bold: true,
     bg: '#fffdf6',
     color: '#7a5c00',
   });
-  put(
-    bl(
-      'Top menu [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. The menu switches instantly.',
-      '상단 메뉴 [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. 메뉴가 즉시 바뀝니다.',
-    ),
-    { size: 11 },
+  row(
+    'Top menu [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. The menu switches instantly.',
+    '상단 메뉴 [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. 메뉴가 즉시 바뀝니다.',
+    { size: 11, h: 34 },
   );
   gap();
 
-  // 1️⃣ 시트 생성 + 권한
-  put(
-    bl('1️⃣  Create 4 sheets + approve Google permissions', '1️⃣  시트 4개 생성 + Google 권한 승인'),
-    {
-      size: 12,
-      bold: true,
-      bg: '#fffdf6',
-      color: '#7a5c00',
-    },
-  );
-  put(
-    bl(
-      '① Click [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets]',
-      '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets] 클릭',
-    ),
+  row('1️⃣  Create 4 sheets + approve Google permissions', '1️⃣  시트 4개 생성 + Google 권한 승인', {
+    size: 12,
+    bold: true,
+    bg: '#fffdf6',
+    color: '#7a5c00',
+  });
+  row(
+    '① Click [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets]',
+    '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets] 클릭',
     { size: 11 },
   );
-  put(
-    bl(
-      '② Approve Google permissions — an "unverified app" warning is normal:',
-      '② Google 권한 승인 — "확인하지 않은 앱" 경고는 정상:',
-    ),
+  row(
+    '② Approve Google permissions — an "unverified app" warning is normal:',
+    '② Google 권한 승인 — "확인하지 않은 앱" 경고는 정상:',
     { size: 11 },
   );
-  put(
-    bl(
-      '   ⓐ Click [Advanced] (don\'t click "back to safety")',
-      "   ⓐ [고급] 클릭 ('안전한 환경으로 돌아가기' 누르지 말 것)",
-    ),
+  row(
+    '   ⓐ Click [Advanced] (don\'t click "back to safety")',
+    "   ⓐ [고급] 클릭 ('안전한 환경으로 돌아가기' 누르지 말 것)",
     { size: 10, color: '#555' },
   );
-  put(
-    bl(
-      '   ⓑ Click [Go to Kingshot Coupon (unsafe)]',
-      '   ⓑ [Kingshot Coupon(으)로 이동(안전하지 않음)] 클릭',
-    ),
+  row(
+    '   ⓑ Click [Go to Kingshot Coupon (unsafe)]',
+    '   ⓑ [Kingshot Coupon(으)로 이동(안전하지 않음)] 클릭',
     { size: 10, color: '#555' },
   );
-  put(bl('   ⓒ Check [Select all] → [Continue]', '   ⓒ [모두 선택] 체크 → [계속]'), {
+  row('   ⓒ Check [Select all] → [Continue]', '   ⓒ [모두 선택] 체크 → [계속]', {
     size: 10,
     color: '#555',
   });
-  put(
-    bl(
-      '   ※ "Unsafe" is just Google\'s unverified notice — the code is safe.',
-      '   ※ "안전하지 않음"은 Google 미인증 안내일 뿐 — 코드는 안전',
-    ),
+  row(
+    '   ※ "Unsafe" is just Google\'s unverified notice — the code is safe.',
+    '   ※ "안전하지 않음"은 Google 미인증 안내일 뿐 — 코드는 안전',
     { size: 10, color: '#888', italic: true },
   );
-  put(
-    bl(
-      '③ 4 sheets (users · coupons · logs · system_logs) are auto-created',
-      '③ 시트 4개(users · coupons · logs · system_logs) 자동 생성',
-    ),
+  row(
+    '③ 4 sheets (users · coupons · logs · system_logs) are auto-created',
+    '③ 시트 4개(users · coupons · logs · system_logs) 자동 생성',
     { size: 11 },
   );
-  put(
-    bl('✅ If those 4 sheets already show, Step 1 is done', '✅ 4개 시트가 이미 보이면 1단계 완료'),
+  row('✅ If those 4 sheets already show, Step 1 is done', '✅ 4개 시트가 이미 보이면 1단계 완료', {
+    size: 10,
+    color: '#888',
+    italic: true,
+  });
+  gap();
+
+  row('2️⃣  Deploy the web app + verify', '2️⃣  웹앱 배포 + 접속 확인', {
+    size: 12,
+    bold: true,
+    bg: '#fffdf6',
+    color: '#7a5c00',
+  });
+  row(
+    '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → modal [▶ Open Apps Script editor]',
+    '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → 모달 [▶ Apps Script 에디터 열기]',
+    { size: 11, h: 34 },
+  );
+  row(
+    '② Editor top-right [Deploy ▸ New deployment] → [⚙️ Type] → [Web app]',
+    '② 에디터 우측 상단 [배포 ▸ 새 배포] → [⚙️ 유형] → [웹 앱]',
+    { size: 11 },
+  );
+  row(
+    '③ Execute as = Me, Who has access = Anyone → [Deploy]',
+    '③ 실행 사용자 = 나(본인), 액세스 = 모든 사용자 → [배포]',
+    { size: 11 },
+  );
+  row(
+    '④ "Authorization required" → [Authorize] → allow all like Step 1 ⓐⓑⓒ',
+    '④ "액세스 권한 부여 요청" → [액세스 승인] → 1단계 ⓐⓑⓒ 처럼 모두 허용',
+    { size: 11, h: 34 },
+  );
+  row(
+    '⑤ "Deployment updated" → [Copy] the Web app URL → [Done]',
+    '⑤ "배포가 업데이트되었습니다" → 웹 앱 URL [복사] → [완료]',
+    { size: 11 },
+  );
+  row('⑥ Open the copied /exec URL in a browser', '⑥ 복사한 /exec URL 을 브라우저로 접속 확인', {
+    size: 11,
+  });
+  row(
+    '⑦ Changing [🛠 Admin] settings needs 🔑 password (today MMDD, 4 digits)',
+    '⑦ [🛠 관리] 설정 변경은 🔑 비밀번호(오늘 MMDD 4자리) 필요',
+    { size: 11 },
+  );
+  gap();
+
+  row('3️⃣  (Optional) Auto coupon sync', '3️⃣  (선택) 자동 쿠폰 동기화', {
+    size: 12,
+    bold: true,
+    bg: '#fffdf6',
+    color: '#7a5c00',
+  });
+  row(
+    '⑧ To auto-add new community coupons, turn ON Auto coupon sync in [🛠 Admin]',
+    '⑧ 커뮤니티 신규 쿠폰 자동 등록하려면 [🛠 관리]에서 자동 쿠폰 동기화 ON',
+    { size: 11, h: 34 },
+  );
+  row(
+    '   (or menu [👑 Kingshot Bot ▸ 🔄 Sync ▸ Auto-sync ON/OFF])',
+    '   (또는 [👑 Kingshot Bot ▸ 🔄 동기화 ▸ 자동 동기화 ON/OFF])',
+    { size: 10, color: '#555' },
+  );
+  row(
+    '⑨ OFF by default per copy — turn ON to install the sync trigger',
+    '⑨ 복사본마다 기본 꺼짐 — 켜야 본인 시트에 동기화 트리거 설치',
+    { size: 11, h: 34 },
+  );
+  row(
+    '⑩ Manual registration is always safe (ON or OFF) — no impact if the source changes/stops',
+    '⑩ 자동 켜짐/꺼짐 무관 수동 등록은 항상 안전 — 외부 사이트 변경·중단에도 영향 없음',
+    { size: 11, h: 44 },
+  );
+  row(
+    '=HYPERLINK("https://kingshotdata.kr","🔗 Coupon source: kingshotdata.kr")',
+    '=HYPERLINK("https://kingshotdata.kr","🔗 쿠폰 출처: kingshotdata.kr")',
+    { formula: true, size: 10 },
+  );
+  gap();
+
+  full(
+    '🪄 After onboarding you can delete this sheet (right-click tab → "Delete sheet")  ·  온보딩 끝나면 삭제 OK',
     {
       size: 10,
       color: '#888',
-      italic: true,
+      center: true,
+      h: 30,
     },
-  );
-  gap();
-
-  // 2️⃣ 웹앱 배포
-  put(bl('2️⃣  Deploy the web app + verify', '2️⃣  웹앱 배포 + 접속 확인'), {
-    size: 12,
-    bold: true,
-    bg: '#fffdf6',
-    color: '#7a5c00',
-  });
-  put(
-    bl(
-      '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → modal [▶ Open Apps Script editor]',
-      '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → 모달 [▶ Apps Script 에디터 열기]',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '② Editor top-right [Deploy ▸ New deployment] → [⚙️ Type] → [Web app]',
-      '② 에디터 우측 상단 [배포 ▸ 새 배포] → [⚙️ 유형] → [웹 앱]',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '③ Execute as = Me, Who has access = Anyone → [Deploy]',
-      '③ 실행 사용자 = 나(본인), 액세스 = 모든 사용자 → [배포]',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '④ "Authorization required" → [Authorize] → allow all like Step 1 ⓐⓑⓒ',
-      '④ "액세스 권한 부여 요청" → [액세스 승인] → 1단계 ⓐⓑⓒ 처럼 모두 허용',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '⑤ "Deployment updated" → [Copy] the Web app URL → [Done]',
-      '⑤ "배포가 업데이트되었습니다" → 웹 앱 URL [복사] → [완료]',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl('⑥ Open the copied /exec URL in a browser', '⑥ 복사한 /exec URL 을 브라우저로 접속 확인'),
-    {
-      size: 11,
-    },
-  );
-  put(
-    bl(
-      '⑦ Changing [🛠 Admin] settings needs 🔑 password (today MMDD, 4 digits)',
-      '⑦ [🛠 관리] 설정 변경은 🔑 비밀번호(오늘 MMDD 4자리) 필요',
-    ),
-    { size: 11 },
-  );
-  gap();
-
-  // 3️⃣ (선택) 자동 동기화
-  put(bl('3️⃣  (Optional) Auto coupon sync', '3️⃣  (선택) 자동 쿠폰 동기화'), {
-    size: 12,
-    bold: true,
-    bg: '#fffdf6',
-    color: '#7a5c00',
-  });
-  put(
-    bl(
-      '⑧ To auto-add new community coupons, turn ON Auto coupon sync in [🛠 Admin]',
-      '⑧ 커뮤니티 신규 쿠폰 자동 등록하려면 [🛠 관리]에서 자동 쿠폰 동기화 ON',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '   (or menu [👑 Kingshot Bot ▸ 🔄 Sync ▸ Auto-sync ON/OFF])',
-      '   (또는 [👑 Kingshot Bot ▸ 🔄 동기화 ▸ 자동 동기화 ON/OFF])',
-    ),
-    { size: 10, color: '#555' },
-  );
-  put(
-    bl(
-      '⑨ OFF by default per copy — turn ON to install the sync trigger on your sheet',
-      '⑨ 복사본마다 기본 꺼짐 — 켜야 본인 시트에 동기화 트리거 설치',
-    ),
-    { size: 11 },
-  );
-  put(
-    bl(
-      '⑩ Manual registration is always safe (ON or OFF) — no impact if the source changes/stops',
-      '⑩ 자동 켜짐/꺼짐 무관 수동 등록은 항상 안전 — 외부 사이트 변경·중단에도 영향 없음',
-    ),
-    { size: 11, h: 48 },
-  );
-  put('=HYPERLINK("https://kingshotdata.kr", "🔗 Coupon source / 쿠폰 출처: kingshotdata.kr")', {
-    formula: true,
-    size: 10,
-    h: 24,
-  });
-  gap();
-
-  // Footer
-  put(
-    bl(
-      '🪄 After onboarding you can delete this sheet (right-click tab → "Delete sheet")',
-      '🪄 온보딩 끝나면 이 시트 삭제 OK (탭 우클릭 → "Delete sheet")',
-    ),
-    { size: 10, color: '#888', center: true, h: 34 },
   );
 
   sheet.setHiddenGridlines(true);
