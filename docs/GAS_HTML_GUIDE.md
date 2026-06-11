@@ -577,6 +577,44 @@ function include(filename) {
 </div>
 ```
 
+### 결과 메시지 깜빡임(플래시) 효과
+
+상태 메시지가 갱신될 때 **잠깐 하이라이트로 번쩍**여 주목을 유도하는 패턴.
+
+#### ⚠️ CSS @keyframes 재발화는 불안정
+
+`class` 제거→추가 + reflow 로 keyframe 을 재시작하는 흔한 트릭은,
+**같은 메시지를 연속으로 띄울 때 재시작이 안 되는** 경우가 있다 (실측: GAS 웹앱에서 전혀 안 보임).
+
+```javascript
+// ❌ 불안정: keyframe 재발화 트릭
+el.classList.remove('flash');
+void el.offsetWidth; // reflow
+el.classList.add('flash'); // 가끔/특정 환경서 재시작 안 됨
+```
+
+#### ✅ 권장: JS inline transition
+
+배경을 **즉시 켜고(transition:none) → reflow 로 확정 → transition 으로 투명 페이드**.
+transition 은 reflow 후 속성 변경에 **항상 발화**하므로 매번 확실히 깜빡인다.
+
+```javascript
+function flash(el, msg) {
+  el.textContent = msg;
+  if (!msg) return;
+  el.style.transition = 'none';
+  el.style.background = 'rgba(184,134,11,0.6)'; // 즉시 하이라이트
+  el.style.borderRadius = '8px';
+  void el.offsetWidth; // reflow 로 금색 확정
+  el.style.transition = 'background 1.8s ease 0.3s'; // 0.3s 유지 후 1.8s 페이드
+  el.style.background = 'transparent';
+}
+```
+
+- `transition: background <duration> ease <delay>` — `delay` 로 "잠깐 유지 후 천천히 사라짐" 연출
+- 연속 호출해도 매번 깜빡임 (transition 재발화 보장)
+- `@keyframes` 불필요 → CSS 의존 없이 JS 만으로 동작
+
 ---
 
 ## 8. 베스트 프랙티스
