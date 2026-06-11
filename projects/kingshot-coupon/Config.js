@@ -60,10 +60,10 @@ function getConfig() {
 
     // 시트 이름
     sheets: {
-      users: 'users',
-      coupons: 'coupons',
-      logs: 'logs',
-      systemLogs: 'system_logs',
+      users: '👤 users',
+      coupons: '🎟️ coupons',
+      logs: '🧾 logs',
+      systemLogs: '🩺 system_logs',
     },
 
     // Rate limit 대응

@@ -47,7 +47,21 @@ function getSheet_(logicalName) {
   if (!actualName) {
     throw new Error(`알 수 없는 시트 키: ${logicalName}`);
   }
-  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(actualName) || null;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(actualName);
+  if (!sheet) {
+    // 마이그레이션: 구버전(이모지 없는) 이름으로 찾으면 새 이름으로 자동 rename.
+    // 데이터는 그대로 보존되고 탭 이름만 바뀜. 첫 접근 시 1회만 동작.
+    const baseName = actualName.replace(/^[^A-Za-z]+/, '');
+    if (baseName && baseName !== actualName) {
+      const legacy = ss.getSheetByName(baseName);
+      if (legacy) {
+        legacy.setName(actualName);
+        sheet = legacy;
+      }
+    }
+  }
+  return sheet || null;
 }
 
 /** getSheet_ 와 같지만 없으면 안내 메시지 포함 throw — I/O 함수 진입 시 사용 */
@@ -56,7 +70,7 @@ function requireSheet_(logicalName) {
   if (!sheet) {
     const config = getConfig();
     throw new Error(
-      `'${config.sheets[logicalName]}' 시트가 없습니다. 먼저 [🚀 Setup ▸ Setup Sheets] 를 실행하세요.`,
+      `'${config.sheets[logicalName]}' 시트가 없습니다. 먼저 [🚀 설정 ▸ 시트 4개 생성] 을 실행하세요.`,
     );
   }
   return sheet;
@@ -196,8 +210,8 @@ function quickSetupWizard() {
     <h2>🚀 Kingshot Bot — Quick Setup</h2>
     <p style="font-size:13px; color:#555;">아래 2단계로 사용 준비 완료입니다.</p>
     <p style="font-size:12px; color:#888; margin-top:-2px;">
-      💡 시트 4개(<code>users · coupons · logs · system_logs</code>)가 아직 안 보이면
-      먼저 <b>👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets</b> 부터 실행하세요.
+      💡 시트 4개(<code>👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs</code>)가 아직 안 보이면
+      먼저 <b>👑 Kingshot Bot ▸ 🚀 설정 ▸ 시트 4개 생성</b> 부터 실행하세요.
     </p>
 
     <div class="step">
@@ -245,7 +259,19 @@ function setupSheetsSilently_() {
   const created = [];
 
   for (const def of defs) {
-    if (ss.getSheetByName(def.name)) {
+    // 새 이름(이모지)로 있으면 건너뜀. 없으면 구버전(이모지 없는) 이름을 찾아 rename 으로 흡수.
+    let existing = ss.getSheetByName(def.name);
+    if (!existing) {
+      const baseName = def.name.replace(/^[^A-Za-z]+/, '');
+      if (baseName && baseName !== def.name) {
+        const legacy = ss.getSheetByName(baseName);
+        if (legacy) {
+          legacy.setName(def.name);
+          existing = legacy;
+        }
+      }
+    }
+    if (existing) {
       continue;
     }
     const sheet = ss.insertSheet(def.name);
@@ -386,8 +412,8 @@ function writeGuideSheet_(ss) {
     { size: 10, color: '#888', italic: true },
   );
   row(
-    '③ 4 sheets (users · coupons · logs · system_logs) are auto-created',
-    '③ 시트 4개(users · coupons · logs · system_logs) 자동 생성',
+    '③ 4 sheets (👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) are auto-created',
+    '③ 시트 4개(👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) 자동 생성',
     { size: 11 },
   );
   row('✅ If those 4 sheets already show, Step 1 is done', '✅ 4개 시트가 이미 보이면 1단계 완료', {
@@ -558,7 +584,7 @@ function runCouponBatch_() {
       // users === 0
       msg =
         `실행 대상 없음 — 활성 쿠폰 ${coupons.length}개, 활성 유저 0명.\n` +
-        `유저를 추가하거나 users 시트의 active 열을 확인하세요.`;
+        `유저를 추가하거나 👤 users 시트의 active 열을 확인하세요.`;
     }
     ss.toast(msg, '👑 Kingshot Bot', 10);
     return null; // 처리할 게 없으니 이어실행 불필요
@@ -986,7 +1012,7 @@ function logSystem_(level, source, msg, target) {
   try {
     const config = getConfig();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(config.sheets.systemLogs);
+    let sheet = getSheet_('systemLogs'); // 구버전 이름 자동 마이그레이션 포함
     if (!sheet) {
       sheet = ss.insertSheet(config.sheets.systemLogs);
       sheet
