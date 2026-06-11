@@ -1,4 +1,4 @@
-/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, nt */
+/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, nt, getConfig */
 
 /**
  * Kingshot Coupon — 외부 쿠폰 소스 자동 동기화 (옵션 레이어)
@@ -280,13 +280,30 @@ function apiRunSyncNow(password) {
 /** 메뉴: 지금 1회 동기화 */
 function menuRunSyncNow() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const res = runCouponSync_(true);
-  ui.alert('🔄 쿠폰 동기화', (res && res.message) || '완료', ui.ButtonSet.OK);
+  let body;
+  if (res && res.ok) {
+    body = nt(
+      'md_sync_result',
+      {
+        n: res.registered.length,
+        codes: res.registered.join(', '),
+        rej: res.rejected.length,
+        cand: res.candidates,
+      },
+      ml,
+    );
+  } else {
+    body = nt('md_sync_fail', { reason: (res && res.data && res.data.reason) || '' }, ml);
+  }
+  ui.alert(nt('md_sync_title', null, ml), body, ui.ButtonSet.OK);
 }
 
 /** 메뉴: 자동 동기화 ON/OFF 토글 */
 function menuToggleAutoSync() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const props = PropertiesService.getScriptProperties();
   const prev = props.getProperty('AUTO_SYNC_ENABLED') === 'true';
   const next = !prev;
@@ -303,8 +320,10 @@ function menuToggleAutoSync() {
     '',
   );
   ui.alert(
-    '🔄 자동 동기화',
-    next ? `ON — ${SYNC_INTERVAL_HOURS}시간마다 자동 확인합니다.` : 'OFF 되었습니다.',
+    nt('md_autosync_title', null, ml),
+    next
+      ? nt('md_autosync_on', { hours: SYNC_INTERVAL_HOURS }, ml)
+      : nt('md_autosync_off', null, ml),
     ui.ButtonSet.OK,
   );
 }

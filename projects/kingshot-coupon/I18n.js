@@ -132,6 +132,97 @@ const SLACK_MSG = {
     mn_clean_logs: '만료 로그 정리',
     mn_clear_syslogs: '시스템 로그 비우기',
     mn_diagnose: '중복 처리 진단',
+    // ── 시트 메뉴 다이얼로그/토스트 (CP3) — 배포자 언어(MENU_LANG) ──
+    md_bot: '👑 Kingshot Bot',
+    md_bot_done: '👑 Kingshot Bot 완료',
+    md_batch_none_both: '실행 대상 없음 — 유저·쿠폰 둘 다 0건. 먼저 유저+쿠폰을 등록하세요.',
+    md_batch_none_coupon: (d) =>
+      `실행 대상 없음 — 활성 유저 ${d.users}명, 활성 쿠폰 0개.\n쿠폰을 등록하면 자동으로 배치가 실행됩니다.`,
+    md_batch_none_user: (d) =>
+      `실행 대상 없음 — 활성 쿠폰 ${d.coupons}개, 활성 유저 0명.\n유저를 추가하거나 👤 users 시트의 active 열을 확인하세요.`,
+    md_batch_start: (d) =>
+      `시작: ${d.users}명 × ${d.coupons}쿠폰 = 최대 ${d.combos}건, 예상 ~${d.est}s (시간예산 ${d.budget}s 초과 시 안전 중단)`,
+    md_batch_summary: (d) =>
+      `성공 ${d.success} / 이미받음 ${d.already} / 만료·무효 ${d.disabled} / 실패 ${d.fail} / 스킵 ${d.skip}\n소요 ${d.elapsed}s (건당 ~${d.avg}s)`,
+    md_batch_timeout: ' — ⏱️ 시간초과 중단(1분 뒤 자동 이어실행 예약됨)',
+    md_test_title: 'Kingshot 단일 테스트',
+    md_test_fid: '유저 fid 를 입력하세요:',
+    md_test_code: '쿠폰 코드를 입력하세요:',
+    md_test_need_both: 'fid 와 쿠폰 코드를 모두 입력해야 합니다.',
+    md_test_result_t: '테스트 결과',
+    md_test_result_d: (d) =>
+      `fid: ${d.fid}\ncode: ${d.code}\n결과: ${d.result}\n메시지: ${d.message}`,
+    md_setup_title: '시트 생성',
+    md_setup_created: (d) => `생성된 시트: ${d.list}`,
+    md_setup_exists: '모든 시트가 이미 존재합니다.',
+    md_guide_title: '📖 가이드',
+    md_guide_exists: (d) => `'${d.name}' 시트가 이미 존재합니다.`,
+    md_guide_done_t: '📖 가이드 — 생성 완료',
+    md_guide_done_d: (d) =>
+      `'${d.name}' 시트를 생성했습니다.\n이 탭을 활성 상태로 둔 뒤 시트를 공유/카피 허용하면 멤버가 자동으로 봅니다.`,
+    md_clean_none_t: '정리 대상 없음',
+    md_clean_none_d: 'coupons 시트에 status 가 EXPIRED/INVALID_CODE 인 코드가 없습니다.',
+    md_clean_done_t: '만료 로그 정리',
+    md_clean_done_d: (d) =>
+      `죽은 코드 ${d.codes}개의 로그 ${d.total}건을 정리했습니다.\n코드: ${d.list}`,
+    md_invalid_title: '🗑 오타 코드 정리',
+    md_invalid_none: '정리할 INVALID(존재하지 않는) 코드가 없습니다.',
+    md_invalid_done: (d) =>
+      `존재하지 않는 코드 ${d.coupons}건 삭제\n🧹 관련 logs ${d.logs}건 정리\n코드: ${d.codes}\n\n⚠️ 소스에 아직 있는 코드는 다음 동기화 때 1회 재검증 후 재생성될 수 있습니다(UI 엔 숨김).`,
+    md_syslog_missing: (d) => `'${d.name}' 시트가 없습니다.`,
+    md_syslog_empty: 'system_logs 가 비어있습니다.',
+    md_syslog_title: '시스템 로그 비우기',
+    md_syslog_confirm: (d) => `system_logs ${d.n}건을 모두 삭제할까요?`,
+    md_syslog_done: '✅ system_logs 청소 완료',
+    md_dup_empty: '👤 users 시트가 비어있습니다.',
+    md_dup_none_t: '중복 없음',
+    md_dup_none_d: (d) => `users 시트 OK — unique fid ${d.unique}개, 중복 0건.`,
+    md_dup_found_t: '중복 발견',
+    md_dup_found_d: (d) =>
+      `중복 fid ${d.count}건 발견 — 뒷 row 삭제 (첫 등장 보존)?\n\n${d.preview}${d.more}`,
+    md_dup_more: (d) => `\n  ... 총 ${d.count}건`,
+    md_dup_done_t: '✅ 정리 완료',
+    md_dup_done_d: (d) => `중복 ${d.count}건 삭제됨. 현재 유저: ${d.unique}명 (unique).`,
+    md_diag_no_logs: 'logs 시트 없음',
+    md_diag_title: '중복 처리 진단',
+    md_diag_body: (d) =>
+      `=== Dedup 진단 ===\n\n` +
+      `logs 데이터 행: ${d.totalLogRows}\n` +
+      `활성 유저: ${d.users}, 활성 쿠폰: ${d.coupons}\n` +
+      `예상 조합: ${d.combos}\n\n` +
+      `── dedup 셋 크기 (변형별) ──\n` +
+      `strict (현재):     ${d.strict}\n` +
+      `case-loose:        ${d.caseL}\n` +
+      `trim-loose:        ${d.trimL}\n` +
+      `type-loose:        ${d.typeL}\n\n` +
+      `── 누락 조합 수 (변형별) ──\n` +
+      `strict:            ${d.mStrict}\n` +
+      `case-loose:        ${d.mCase}   (회복: ${d.rCase})\n` +
+      `trim-loose:        ${d.mTrim}   (회복: ${d.rTrim})\n` +
+      `type-loose:        ${d.mType}   (회복: ${d.rType})\n\n` +
+      `누락 샘플 (strict, 최대 8):\n` +
+      (d.sample || '(없음 — dedup 완벽)'),
+    md_no_nick: '(닉네임 없음)',
+    md_user_not_found: (d) => `fid ${d.fid} 를 users 시트에서 찾을 수 없습니다.`,
+    md_deact_title: '유저 비활성화',
+    md_deact_prompt: '비활성화할 fid 를 입력하세요:',
+    md_deact_done: (d) => `✅ 비활성화: ${d.nick} (fid ${d.fid}) — 배치에서 제외됩니다.`,
+    md_del_title: '유저 삭제',
+    md_del_prompt: '삭제할 fid 를 입력하세요:',
+    md_del_confirm_t: '삭제 확인',
+    md_del_confirm_d: (d) => `${d.nick} (fid ${d.fid}) 행을 삭제할까요?`,
+    md_del_done: (d) =>
+      `🗑️ 삭제 완료: ${d.nick} (fid ${d.fid}) — ${d.before} → ${d.after}명\n🧹 logs 행 ${d.logs}건 같이 정리됨`,
+    md_sync_title: '🔄 쿠폰 동기화',
+    md_sync_result: (d) =>
+      `신규 ${d.n}건` +
+      (d.n ? ` (${d.codes})` : '') +
+      (d.rej ? ` · 거부/보류 ${d.rej}건` : '') +
+      ` · 후보 ${d.cand}`,
+    md_sync_fail: (d) => `동기화 실패: ${d.reason}`,
+    md_autosync_title: '🔄 자동 동기화',
+    md_autosync_on: (d) => `ON — ${d.hours}시간마다 자동 확인합니다.`,
+    md_autosync_off: 'OFF 되었습니다.',
   },
   en: {
     user_reg_t: '👤 User registered',
@@ -217,5 +308,96 @@ const SLACK_MSG = {
     mn_clean_logs: 'Clean Expired Logs',
     mn_clear_syslogs: 'Clear System Logs',
     mn_diagnose: 'Diagnose Dedup',
+    // ── Sheet menu dialogs/toasts (CP3) — deployer language (MENU_LANG) ──
+    md_bot: '👑 Kingshot Bot',
+    md_bot_done: '👑 Kingshot Bot — done',
+    md_batch_none_both: 'Nothing to run — 0 users and 0 coupons. Register users + coupons first.',
+    md_batch_none_coupon: (d) =>
+      `Nothing to run — ${d.users} active user(s), 0 active coupons.\nRegister a coupon and the batch runs automatically.`,
+    md_batch_none_user: (d) =>
+      `Nothing to run — ${d.coupons} active coupon(s), 0 active users.\nAdd users or check the 'active' column in the 👤 users sheet.`,
+    md_batch_start: (d) =>
+      `Start: ${d.users} users × ${d.coupons} coupons = up to ${d.combos}, est ~${d.est}s (safe-stops if over ${d.budget}s time budget)`,
+    md_batch_summary: (d) =>
+      `Success ${d.success} / Already ${d.already} / Expired·invalid ${d.disabled} / Failed ${d.fail} / Skipped ${d.skip}\nTook ${d.elapsed}s (~${d.avg}s each)`,
+    md_batch_timeout: ' — ⏱️ Timed out (auto-continues in 1 min)',
+    md_test_title: 'Kingshot Single Test',
+    md_test_fid: 'Enter user fid:',
+    md_test_code: 'Enter coupon code:',
+    md_test_need_both: 'Both fid and coupon code are required.',
+    md_test_result_t: 'Test result',
+    md_test_result_d: (d) =>
+      `fid: ${d.fid}\ncode: ${d.code}\nresult: ${d.result}\nmessage: ${d.message}`,
+    md_setup_title: 'Setup Sheets',
+    md_setup_created: (d) => `Created sheets: ${d.list}`,
+    md_setup_exists: 'All sheets already exist.',
+    md_guide_title: '📖 Guide',
+    md_guide_exists: (d) => `'${d.name}' sheet already exists.`,
+    md_guide_done_t: '📖 Guide — created',
+    md_guide_done_d: (d) =>
+      `Created the '${d.name}' sheet.\nLeave this tab active, then share/allow-copy so members see it automatically.`,
+    md_clean_none_t: 'Nothing to clean',
+    md_clean_none_d: 'No coupons with status EXPIRED/INVALID_CODE in the coupons sheet.',
+    md_clean_done_t: 'Clean Expired Logs',
+    md_clean_done_d: (d) =>
+      `Cleaned ${d.total} log row(s) for ${d.codes} dead code(s).\nCodes: ${d.list}`,
+    md_invalid_title: '🗑 Clean Invalid Coupons',
+    md_invalid_none: 'No INVALID (nonexistent) codes to clean.',
+    md_invalid_done: (d) =>
+      `Removed ${d.coupons} nonexistent code(s)\n🧹 Cleaned ${d.logs} related log(s)\nCodes: ${d.codes}\n\n⚠️ Codes still in the source may be re-verified once on the next sync and re-created (hidden in the UI).`,
+    md_syslog_missing: (d) => `'${d.name}' sheet not found.`,
+    md_syslog_empty: 'system_logs is empty.',
+    md_syslog_title: 'Clear System Logs',
+    md_syslog_confirm: (d) => `Delete all ${d.n} system_logs row(s)?`,
+    md_syslog_done: '✅ system_logs cleared',
+    md_dup_empty: '👤 users sheet is empty.',
+    md_dup_none_t: 'No duplicates',
+    md_dup_none_d: (d) => `users sheet OK — ${d.unique} unique fid(s), 0 duplicates.`,
+    md_dup_found_t: 'Duplicates found',
+    md_dup_found_d: (d) =>
+      `Found ${d.count} duplicate fid(s) — delete later rows (keep first)?\n\n${d.preview}${d.more}`,
+    md_dup_more: (d) => `\n  ... ${d.count} total`,
+    md_dup_done_t: '✅ Cleaned',
+    md_dup_done_d: (d) => `Removed ${d.count} duplicate(s). Current users: ${d.unique} (unique).`,
+    md_diag_no_logs: 'logs sheet not found',
+    md_diag_title: 'Diagnose Dedup',
+    md_diag_body: (d) =>
+      `=== Dedup diagnosis ===\n\n` +
+      `logs data rows: ${d.totalLogRows}\n` +
+      `active users: ${d.users}, active coupons: ${d.coupons}\n` +
+      `expected combos: ${d.combos}\n\n` +
+      `── dedup set size (by variant) ──\n` +
+      `strict (current):  ${d.strict}\n` +
+      `case-loose:        ${d.caseL}\n` +
+      `trim-loose:        ${d.trimL}\n` +
+      `type-loose:        ${d.typeL}\n\n` +
+      `── missing combos (by variant) ──\n` +
+      `strict:            ${d.mStrict}\n` +
+      `case-loose:        ${d.mCase}   (recovered: ${d.rCase})\n` +
+      `trim-loose:        ${d.mTrim}   (recovered: ${d.rTrim})\n` +
+      `type-loose:        ${d.mType}   (recovered: ${d.rType})\n\n` +
+      `missing sample (strict, max 8):\n` +
+      (d.sample || '(none — dedup perfect)'),
+    md_no_nick: '(no nickname)',
+    md_user_not_found: (d) => `fid ${d.fid} not found in the users sheet.`,
+    md_deact_title: 'Deactivate User',
+    md_deact_prompt: 'Enter fid to deactivate:',
+    md_deact_done: (d) => `✅ Deactivated: ${d.nick} (fid ${d.fid}) — excluded from the batch.`,
+    md_del_title: 'Delete User',
+    md_del_prompt: 'Enter fid to delete:',
+    md_del_confirm_t: 'Confirm delete',
+    md_del_confirm_d: (d) => `Delete the row for ${d.nick} (fid ${d.fid})?`,
+    md_del_done: (d) =>
+      `🗑️ Deleted: ${d.nick} (fid ${d.fid}) — ${d.before} → ${d.after} users\n🧹 ${d.logs} log row(s) cleaned too`,
+    md_sync_title: '🔄 Coupon sync',
+    md_sync_result: (d) =>
+      `${d.n} new` +
+      (d.n ? ` (${d.codes})` : '') +
+      (d.rej ? ` · ${d.rej} rejected/pending` : '') +
+      ` · ${d.cand} candidate(s)`,
+    md_sync_fail: (d) => `Sync failed: ${d.reason}`,
+    md_autosync_title: '🔄 Auto sync',
+    md_autosync_on: (d) => `ON — checks automatically every ${d.hours}h.`,
+    md_autosync_off: 'Turned OFF.',
   },
 };

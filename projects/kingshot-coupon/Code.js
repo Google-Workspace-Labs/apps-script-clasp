@@ -186,10 +186,10 @@ function setMenuLang_(lang) {
 function quickSetupWizard() {
   const ui = SpreadsheetApp.getUi();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ml = getConfig().menuLang;
   const editorUrl = `https://script.google.com/home/projects/${ScriptApp.getScriptId()}/edit`;
 
-  const html = HtmlService.createHtmlOutput(
-    `
+  const style = `
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
              padding: 20px; line-height: 1.55; color: #2a2a2a; }
@@ -206,7 +206,42 @@ function quickSetupWizard() {
       a.btn:hover { background:#9a7308; }
       code { background:#f3eedb; padding:1px 6px; border-radius:4px; font-size:12px; }
       .note { font-size:12px; color:#666; margin-top:14px; }
-    </style>
+    </style>`;
+
+  const body =
+    ml === 'en'
+      ? `
+    <h2>🚀 Kingshot Bot — Quick Setup</h2>
+    <p style="font-size:13px; color:#555;">Two steps and you're ready to go.</p>
+    <p style="font-size:12px; color:#888; margin-top:-2px;">
+      💡 If the 4 sheets (<code>👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs</code>) aren't showing yet,
+      run <b>👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets</b> first.
+    </p>
+
+    <div class="step">
+      <h3><span class="badge">1</span>Deploy web app + verify access</h3>
+      <p>Open the editor with the button below → top-right <code>Deploy ▸ New deployment</code> →
+         left <code>⚙️ Type ▸ Web app</code><br>
+         → config: Execute as = <b>Me</b>, Who has access = <b>Anyone</b> →
+         click <code>Deploy</code><br>
+         → <code>Authorize access</code> → same auth steps as Step 1 ⓐⓑⓒ in the <b>📖 Guide</b> sheet<br>
+         → on "Deployment updated", <b>[Copy]</b> the web app URL<br>
+         → open the copied <code>/exec</code> URL in a browser to verify</p>
+      <a class="btn" href="${editorUrl}" target="_blank">▶ Open Apps Script editor</a>
+    </div>
+
+    <div class="step">
+      <h3><span class="badge">2</span>Slack alerts (optional)</h3>
+      <p>To receive batch results in Slack, open the <code>/exec</code> web app →
+         <b>🛠 Admin</b> panel → password (today's MMDD, 4 digits) → save the Webhook URL.
+         (The Help button can copy a GPT prompt for you.)</p>
+    </div>
+
+    <p class="note">
+      🔁 To see this again: <b>👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup</b>.
+    </p>
+  `
+      : `
     <h2>🚀 Kingshot Bot — Quick Setup</h2>
     <p style="font-size:13px; color:#555;">아래 2단계로 사용 준비 완료입니다.</p>
     <p style="font-size:12px; color:#888; margin-top:-2px;">
@@ -220,7 +255,7 @@ function quickSetupWizard() {
          좌측 <code>⚙️ 유형 ▸ 웹 앱</code> 선택<br>
          → 구성: 실행 사용자 = <b>나</b>, 액세스 권한 = <b>모든 사용자</b> →
          <code>배포</code> 클릭<br>
-         → <code>액세스 승인</code> → 권한 절차는 <b>📖 시작하기</b> 시트의 1단계 ⓐⓑⓒ 와 동일<br>
+         → <code>액세스 승인</code> → 권한 절차는 <b>📖 가이드</b> 시트의 1단계 ⓐⓑⓒ 와 동일<br>
          → "배포가 업데이트되었습니다" 화면의 웹 앱 URL <b>[복사]</b><br>
          → 복사한 <code>/exec</code> URL 을 브라우저로 접속 확인</p>
       <a class="btn" href="${editorUrl}" target="_blank">▶ Apps Script 에디터 열기</a>
@@ -234,10 +269,11 @@ function quickSetupWizard() {
     </div>
 
     <p class="note">
-      🔁 이 안내 다시 보려면 <b>👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup</b>.
+      🔁 이 안내 다시 보려면 <b>👑 Kingshot Bot ▸ 🚀 설정 ▸ 빠른 설정</b>.
     </p>
-  `,
-  )
+  `;
+
+  const html = HtmlService.createHtmlOutput(style + body)
     .setWidth(520)
     .setHeight(540);
 
@@ -558,6 +594,7 @@ function runCouponBatch() {
  * @returns {number|null} nextDelayMs — wrapper 가 이 만큼 뒤에 자동 재예약 (null = 안 함) */
 function runCouponBatch_() {
   const config = getConfig();
+  const ml = config.menuLang;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const startTime = Date.now();
@@ -574,19 +611,15 @@ function runCouponBatch_() {
     // 첫 운영자 안내: 어느 쪽이 비었는지 명확히 + 다음에 뭘 해야 하는지 안내
     let msg;
     if (coupons.length === 0 && users.length === 0) {
-      msg = '실행 대상 없음 — 유저·쿠폰 둘 다 0건. 먼저 유저+쿠폰을 등록하세요.';
+      msg = nt('md_batch_none_both', null, ml);
     } else if (coupons.length === 0) {
       // 가장 흔한 첫 상황: 유저는 있는데 쿠폰이 없음
-      msg =
-        `실행 대상 없음 — 활성 유저 ${users.length}명, 활성 쿠폰 0개.\n` +
-        `쿠폰을 등록하면 자동으로 배치가 실행됩니다.`;
+      msg = nt('md_batch_none_coupon', { users: users.length }, ml);
     } else {
       // users === 0
-      msg =
-        `실행 대상 없음 — 활성 쿠폰 ${coupons.length}개, 활성 유저 0명.\n` +
-        `유저를 추가하거나 👤 users 시트의 active 열을 확인하세요.`;
+      msg = nt('md_batch_none_user', { coupons: coupons.length }, ml);
     }
-    ss.toast(msg, '👑 Kingshot Bot', 10);
+    ss.toast(msg, nt('md_bot', null, ml), 10);
     return null; // 처리할 게 없으니 이어실행 불필요
   }
 
@@ -594,9 +627,18 @@ function runCouponBatch_() {
   const combos = users.length * coupons.length;
   const estSec = Math.round((combos * config.requestDelayMs) / 1000);
   ss.toast(
-    `시작: ${users.length}명 × ${coupons.length}쿠폰 = 최대 ${combos}건, 예상 ~${estSec}s ` +
-      `(시간예산 ${Math.round(config.maxRuntimeMs / 1000)}s 초과 시 안전 중단)`,
-    '👑 Kingshot Bot',
+    nt(
+      'md_batch_start',
+      {
+        users: users.length,
+        coupons: coupons.length,
+        combos,
+        est: estSec,
+        budget: Math.round(config.maxRuntimeMs / 1000),
+      },
+      ml,
+    ),
+    nt('md_bot', null, ml),
     6,
   );
 
@@ -739,14 +781,22 @@ function runCouponBatch_() {
   const elapsedSec = Math.round((Date.now() - startTime) / 1000);
   const apiCalls = stats.success + stats.already + stats.disabled + stats.fail;
   const avg = apiCalls > 0 ? (elapsedSec / apiCalls).toFixed(1) : '0';
-  const summary =
-    `성공 ${stats.success} / 이미받음 ${stats.already} / 만료·무효 ${stats.disabled} / ` +
-    `실패 ${stats.fail} / 스킵 ${stats.skip}\n` +
-    `소요 ${elapsedSec}s (건당 ~${avg}s)`;
+  const summary = nt(
+    'md_batch_summary',
+    {
+      success: stats.success,
+      already: stats.already,
+      disabled: stats.disabled,
+      fail: stats.fail,
+      skip: stats.skip,
+      elapsed: elapsedSec,
+      avg,
+    },
+    ml,
+  );
   // toast 는 retry 정보가 아직 안 정해진 시점이라 시간초과만 표시
-  const toastSummary =
-    summary + (stoppedByTime ? ' — ⏱️ 시간초과 중단(1분 뒤 자동 이어실행 예약됨)' : '');
-  ss.toast(toastSummary, '👑 Kingshot Bot 완료', 12);
+  const toastSummary = summary + (stoppedByTime ? nt('md_batch_timeout', null, ml) : '');
+  ss.toast(toastSummary, nt('md_bot_done', null, ml), 12);
   console.log(`[BATCH DONE] ${summary}`);
 
   // 마지막 배치 시각 기록 — 관리 UI 의 'lastBatch' 표시용 (시트 안 보고도 신선도 판단)
@@ -844,10 +894,11 @@ function expireAgedCoupons_(allCoupons, ttlDays) {
  */
 function testSingleCoupon() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
 
   const fidRes = ui.prompt(
-    'Kingshot 단일 테스트',
-    '유저 fid 를 입력하세요:',
+    nt('md_test_title', null, ml),
+    nt('md_test_fid', null, ml),
     ui.ButtonSet.OK_CANCEL,
   );
   if (fidRes.getSelectedButton() !== ui.Button.OK) {
@@ -856,8 +907,8 @@ function testSingleCoupon() {
   const fid = fidRes.getResponseText().trim();
 
   const codeRes = ui.prompt(
-    'Kingshot 단일 테스트',
-    '쿠폰 코드를 입력하세요:',
+    nt('md_test_title', null, ml),
+    nt('md_test_code', null, ml),
     ui.ButtonSet.OK_CANCEL,
   );
   if (codeRes.getSelectedButton() !== ui.Button.OK) {
@@ -866,7 +917,7 @@ function testSingleCoupon() {
   const code = codeRes.getResponseText().trim();
 
   if (!fid || !code) {
-    ui.alert('fid 와 쿠폰 코드를 모두 입력해야 합니다.');
+    ui.alert(nt('md_test_need_both', null, ml));
     return;
   }
 
@@ -874,8 +925,8 @@ function testSingleCoupon() {
   appendLog_(fid, code, result.result, result.message);
 
   ui.alert(
-    '테스트 결과',
-    `fid: ${fid}\ncode: ${code}\n결과: ${result.result}\n메시지: ${result.message}`,
+    nt('md_test_result_t', null, ml),
+    nt('md_test_result_d', { fid, code, result: result.result, message: result.message }, ml),
     ui.ButtonSet.OK,
   );
 }
@@ -894,17 +945,18 @@ function setupSheets() {
   // 마지막에 만들어진 시트(예: system_logs) 로 튕겨가는 UX 문제 방지.
   // 이전 활성 시트를 캡쳐했다가 작업 후 복원.
   const prevActive = ss.getActiveSheet();
+  const ml = getConfig().menuLang;
   const created = setupSheetsSilently_();
   const msg = created.length
-    ? `생성된 시트: ${created.join(', ')}`
-    : '모든 시트가 이미 존재합니다.';
+    ? nt('md_setup_created', { list: created.join(', ') }, ml)
+    : nt('md_setup_exists', null, ml);
   if (created.length) {
     logSystem_('INFO', 'sheet-setup', `sheets created: ${created.join(',')}`, '');
   }
   if (prevActive) {
     prevActive.activate();
   }
-  ss.toast(msg, 'Setup Sheets', 5);
+  ss.toast(msg, nt('md_setup_title', null, ml), 5);
 }
 
 /**
@@ -921,17 +973,21 @@ function setupSheets() {
  */
 function createGuideSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ml = getConfig().menuLang;
   if (ss.getSheetByName(GUIDE_SHEET_NAME)) {
-    ss.toast(`'${GUIDE_SHEET_NAME}' 시트가 이미 존재합니다.`, '📖 시작하기', 5);
+    ss.toast(
+      nt('md_guide_exists', { name: GUIDE_SHEET_NAME }, ml),
+      nt('md_guide_title', null, ml),
+      5,
+    );
     return;
   }
   // 생성 직후 활성화 → 배포자가 공유 직전 마지막 상태로 두기 좋음
   writeGuideSheet_(ss).activate();
   logSystem_('INFO', 'guide-create', `'${GUIDE_SHEET_NAME}' sheet created`, '');
   ss.toast(
-    `'${GUIDE_SHEET_NAME}' 시트를 생성했습니다.\n` +
-      `이 탭을 활성 상태로 둔 뒤 시트를 공유/카피 허용하면 멤버가 자동으로 봅니다.`,
-    '📖 시작하기 — 생성 완료',
+    nt('md_guide_done_d', { name: GUIDE_SHEET_NAME }, ml),
+    nt('md_guide_done_t', null, ml),
     8,
   );
 }
@@ -942,6 +998,7 @@ function createGuideSheet() {
  */
 function cleanExpiredLogs() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const deadStatuses = ['EXPIRED', 'INVALID_CODE'];
 
   const deadCodes = readCoupons_()
@@ -949,11 +1006,7 @@ function cleanExpiredLogs() {
     .map((c) => c.code);
 
   if (deadCodes.length === 0) {
-    ui.alert(
-      '정리 대상 없음',
-      'coupons 시트에 status 가 EXPIRED/INVALID_CODE 인 코드가 없습니다.',
-      ui.ButtonSet.OK,
-    );
+    ui.alert(nt('md_clean_none_t', null, ml), nt('md_clean_none_d', null, ml), ui.ButtonSet.OK);
     return;
   }
 
@@ -969,8 +1022,8 @@ function cleanExpiredLogs() {
     deadCodes.join(','),
   );
   ui.alert(
-    'Clean Expired Logs',
-    `죽은 코드 ${deadCodes.length}개의 로그 ${total}건을 정리했습니다.\n코드: ${deadCodes.join(', ')}`,
+    nt('md_clean_done_t', null, ml),
+    nt('md_clean_done_d', { codes: deadCodes.length, total, list: deadCodes.join(', ') }, ml),
     ui.ButtonSet.OK,
   );
 }
@@ -981,13 +1034,10 @@ function cleanExpiredLogs() {
  */
 function cleanInvalidCoupons() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const res = purgeInvalidCoupons_();
   if (res.coupons === 0) {
-    ui.alert(
-      '🗑 오타 코드 정리',
-      '정리할 INVALID(존재하지 않는) 코드가 없습니다.',
-      ui.ButtonSet.OK,
-    );
+    ui.alert(nt('md_invalid_title', null, ml), nt('md_invalid_none', null, ml), ui.ButtonSet.OK);
     return;
   }
   logSystem_(
@@ -997,9 +1047,12 @@ function cleanInvalidCoupons() {
     res.codes.join(','),
   );
   ui.alert(
-    '🗑 오타 코드 정리',
-    `존재하지 않는 코드 ${res.coupons}건 삭제\n🧹 관련 logs ${res.logs}건 정리\n코드: ${res.codes.join(', ')}\n\n` +
-      `⚠️ 소스에 아직 있는 코드는 다음 동기화 때 1회 재검증 후 재생성될 수 있습니다(UI 엔 숨김).`,
+    nt('md_invalid_title', null, ml),
+    nt(
+      'md_invalid_done',
+      { coupons: res.coupons, logs: res.logs, codes: res.codes.join(', ') },
+      ml,
+    ),
     ui.ButtonSet.OK,
   );
 }
@@ -1035,19 +1088,21 @@ function logSystem_(level, source, msg, target) {
 /** system_logs 시트의 데이터 행을 모두 삭제 (헤더 유지) */
 function clearSystemLogs() {
   const ui = SpreadsheetApp.getUi();
+  const config = getConfig();
+  const ml = config.menuLang;
   const sheet = getSheet_('systemLogs');
   if (!sheet) {
-    ui.alert(`'${getConfig().sheets.systemLogs}' 시트가 없습니다.`);
+    ui.alert(nt('md_syslog_missing', { name: config.sheets.systemLogs }, ml));
     return;
   }
   const last = sheet.getLastRow();
   if (last < 2) {
-    ui.alert('system_logs 가 비어있습니다.');
+    ui.alert(nt('md_syslog_empty', null, ml));
     return;
   }
   const ans = ui.alert(
-    'Clear System Logs',
-    `system_logs ${last - 1}건을 모두 삭제할까요?`,
+    nt('md_syslog_title', null, ml),
+    nt('md_syslog_confirm', { n: last - 1 }, ml),
     ui.ButtonSet.YES_NO,
   );
   if (ans !== ui.Button.YES) {
@@ -1057,7 +1112,7 @@ function clearSystemLogs() {
   sheet.deleteRows(2, cleared);
   // 청소 후 첫 한 줄은 본 액션의 audit — system_logs 가 비어있어도 누가 언제 비웠는지 흔적 남김
   logSystem_('INFO', 'sysl-clear', `system_logs cleared by admin — ${cleared} rows removed`, '');
-  ui.alert('✅ system_logs 청소 완료');
+  ui.alert(nt('md_syslog_done', null, ml));
 }
 
 /**
@@ -1067,10 +1122,11 @@ function clearSystemLogs() {
  */
 function cleanDuplicateUsers() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const sheet = requireSheet_('users');
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) {
-    ui.alert('users 시트가 비어있습니다.');
+    ui.alert(nt('md_dup_empty', null, ml));
     return;
   }
 
@@ -1090,7 +1146,11 @@ function cleanDuplicateUsers() {
   }
 
   if (dupes.length === 0) {
-    ui.alert('중복 없음', `users 시트 OK — unique fid ${seen.size}개, 중복 0건.`, ui.ButtonSet.OK);
+    ui.alert(
+      nt('md_dup_none_t', null, ml),
+      nt('md_dup_none_d', { unique: seen.size }, ml),
+      ui.ButtonSet.OK,
+    );
     return;
   }
 
@@ -1099,10 +1159,16 @@ function cleanDuplicateUsers() {
     .map((d) => `  row ${d.row}: ${d.fid} (${d.nickname || '-'})`)
     .join('\n');
   const confirm = ui.alert(
-    '중복 발견',
-    `중복 fid ${dupes.length}건 발견 — 뒷 row 삭제 (첫 등장 보존)?\n\n` +
-      preview +
-      (dupes.length > 5 ? `\n  ... 총 ${dupes.length}건` : ''),
+    nt('md_dup_found_t', null, ml),
+    nt(
+      'md_dup_found_d',
+      {
+        count: dupes.length,
+        preview,
+        more: dupes.length > 5 ? nt('md_dup_more', { count: dupes.length }, ml) : '',
+      },
+      ml,
+    ),
     ui.ButtonSet.YES_NO,
   );
   if (confirm !== ui.Button.YES) {
@@ -1120,8 +1186,8 @@ function cleanDuplicateUsers() {
     dupes.map((d) => d.fid).join(','),
   );
   ui.alert(
-    '✅ 정리 완료',
-    `중복 ${dupes.length}건 삭제됨. 현재 유저: ${seen.size}명 (unique).`,
+    nt('md_dup_done_t', null, ml),
+    nt('md_dup_done_d', { count: dupes.length, unique: seen.size }, ml),
     ui.ButtonSet.OK,
   );
 }
@@ -1141,9 +1207,10 @@ function cleanDuplicateUsers() {
  */
 function diagnoseDedup() {
   const ui = SpreadsheetApp.getUi();
+  const ml = getConfig().menuLang;
   const logsSheet = getSheet_('logs');
   if (!logsSheet) {
-    ui.alert('logs 시트 없음');
+    ui.alert(nt('md_diag_no_logs', null, ml));
     return;
   }
 
@@ -1223,23 +1290,28 @@ function diagnoseDedup() {
   const recoveredByTrim = missingStrict.length - missingTrim.length;
   const recoveredByType = missingStrict.length - missingType.length;
 
-  const msg =
-    `=== Dedup 진단 ===\n\n` +
-    `logs 데이터 행: ${totalLogRows}\n` +
-    `활성 유저: ${users.length}, 활성 쿠폰: ${coupons.length}\n` +
-    `예상 조합: ${users.length * coupons.length}\n\n` +
-    `── dedup 셋 크기 (변형별) ──\n` +
-    `strict (현재):     ${strictSet.size}\n` +
-    `case-loose:        ${caseLooseSet.size}\n` +
-    `trim-loose:        ${trimLooseSet.size}\n` +
-    `type-loose:        ${typeLooseSet.size}\n\n` +
-    `── 누락 조합 수 (변형별) ──\n` +
-    `strict:            ${missingStrict.length}\n` +
-    `case-loose:        ${missingCase.length}   (회복: ${recoveredByCase})\n` +
-    `trim-loose:        ${missingTrim.length}   (회복: ${recoveredByTrim})\n` +
-    `type-loose:        ${missingType.length}   (회복: ${recoveredByType})\n\n` +
-    `누락 샘플 (strict, 최대 8):\n` +
-    (sampleMissing.length ? sampleMissing.join('\n') : '(없음 — dedup 완벽)');
+  const msg = nt(
+    'md_diag_body',
+    {
+      totalLogRows,
+      users: users.length,
+      coupons: coupons.length,
+      combos: users.length * coupons.length,
+      strict: strictSet.size,
+      caseL: caseLooseSet.size,
+      trimL: trimLooseSet.size,
+      typeL: typeLooseSet.size,
+      mStrict: missingStrict.length,
+      mCase: missingCase.length,
+      rCase: recoveredByCase,
+      mTrim: missingTrim.length,
+      rTrim: recoveredByTrim,
+      mType: missingType.length,
+      rType: recoveredByType,
+      sample: sampleMissing.length ? sampleMissing.join('\n') : '',
+    },
+    ml,
+  );
 
   console.log(msg);
   logSystem_(
@@ -1248,7 +1320,7 @@ function diagnoseDedup() {
     `strict=${strictSet.size} case=${caseLooseSet.size} trim=${trimLooseSet.size} type=${typeLooseSet.size} missing-strict=${missingStrict.length}`,
     '',
   );
-  ui.alert('Dedup 진단', msg, ui.ButtonSet.OK);
+  ui.alert(nt('md_diag_title', null, ml), msg, ui.ButtonSet.OK);
 }
 
 // ============================================================
@@ -1562,45 +1634,55 @@ function sleepWithJitter_(baseMs) {
 /** fid 를 입력받아 active=FALSE 로 (배치에서 제외, 행은 유지) */
 function deactivateUser() {
   const ui = SpreadsheetApp.getUi();
-  const res = ui.prompt('유저 비활성화', '비활성화할 fid 를 입력하세요:', ui.ButtonSet.OK_CANCEL);
+  const ml = getConfig().menuLang;
+  const res = ui.prompt(
+    nt('md_deact_title', null, ml),
+    nt('md_deact_prompt', null, ml),
+    ui.ButtonSet.OK_CANCEL,
+  );
   if (res.getSelectedButton() !== ui.Button.OK) {
     return;
   }
   const fid = res.getResponseText().trim();
   const user = findUser_(fid);
   if (!user) {
-    ui.alert(`fid ${fid} 를 users 시트에서 찾을 수 없습니다.`);
+    ui.alert(nt('md_user_not_found', { fid }, ml));
     return;
   }
-  const nick = user.nickname || '(닉네임 없음)';
+  const nick = user.nickname || nt('md_no_nick', null, ml);
   requireSheet_('users').getRange(user.row, COL.users.active).setValue(false);
   logSystem_('INFO', 'user-deactivate', `manual via menu — nick:${nick}`, fid);
-  ui.alert(`✅ 비활성화: ${nick} (fid ${fid}) — 배치에서 제외됩니다.`);
+  ui.alert(nt('md_deact_done', { nick, fid }, ml));
 }
 
 /** fid 를 입력받아 users 행을 삭제 (확인 후) */
 function deleteUser() {
   const ui = SpreadsheetApp.getUi();
-  const res = ui.prompt('유저 삭제', '삭제할 fid 를 입력하세요:', ui.ButtonSet.OK_CANCEL);
+  const ml = getConfig().menuLang;
+  const res = ui.prompt(
+    nt('md_del_title', null, ml),
+    nt('md_del_prompt', null, ml),
+    ui.ButtonSet.OK_CANCEL,
+  );
   if (res.getSelectedButton() !== ui.Button.OK) {
     return;
   }
   const fid = res.getResponseText().trim();
   const user = findUser_(fid);
   if (!user) {
-    ui.alert(`fid ${fid} 를 users 시트에서 찾을 수 없습니다.`);
+    ui.alert(nt('md_user_not_found', { fid }, ml));
     return;
   }
+  const nick = user.nickname || nt('md_no_nick', null, ml);
   // 시트 메뉴는 편집권한자(관리자)만 쓰므로 비밀번호 없이 확인만
   const confirm = ui.alert(
-    '삭제 확인',
-    `${user.nickname || '(닉네임 없음)'} (fid ${fid}) 행을 삭제할까요?`,
+    nt('md_del_confirm_t', null, ml),
+    nt('md_del_confirm_d', { nick, fid }, ml),
     ui.ButtonSet.YES_NO,
   );
   if (confirm !== ui.Button.YES) {
     return;
   }
-  const nick = user.nickname || '(닉네임 없음)';
   const before = countUsers_();
   requireSheet_('users').deleteRow(user.row);
   const purgedLogs = purgeLogsForUser_(fid);
@@ -1611,10 +1693,7 @@ function deleteUser() {
     `manual via menu — nick:${nick} (${before} → ${after}), logs purged:${purgedLogs}`,
     fid,
   );
-  ui.alert(
-    `🗑️ 삭제 완료: ${nick} (fid ${fid}) — ${before} → ${after}명\n` +
-      `🧹 logs 행 ${purgedLogs}건 같이 정리됨`,
-  );
+  ui.alert(nt('md_del_done', { nick, fid, before, after, logs: purgedLogs }, ml));
 }
 
 // ============================================================
