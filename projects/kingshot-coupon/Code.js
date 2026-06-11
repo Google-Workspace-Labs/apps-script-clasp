@@ -35,7 +35,7 @@ const COL = {
  * 배포자가 [🚀 Setup ▸ 📖 시작하기 시트 생성] 으로 1회 수동 생성 후 멤버에게 공유.
  * 멤버가 카피하면 자동으로 함께 복제되어 첫 안내 역할 — 끝나면 본인이 삭제 가능.
  */
-const GUIDE_SHEET_NAME = '📖 Getting Started';
+const GUIDE_SHEET_NAME = '📖 Guide';
 
 /**
  * config.sheets 의 논리명(users/coupons/logs/systemLogs) → Sheet 객체.
@@ -88,7 +88,7 @@ function onOpen() {
   }
 
   const setupMenu = ui
-    .createMenu('🚀 Setup')
+    .createMenu(nt('mn_setup', null, ml))
     .addItem(nt('mn_quick_setup', null, ml), 'quickSetupWizard')
     .addItem(nt('mn_setup_sheets', null, ml), 'setupSheets')
     .addSeparator()
@@ -358,7 +358,7 @@ function writeGuideSheet_(ss) {
   });
   row(
     '① Click [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets]',
-    '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets] 클릭',
+    '① [👑 Kingshot Bot ▸ 🚀 설정 ▸ 시트 4개 생성] 클릭',
     { size: 11 },
   );
   row(
@@ -405,7 +405,7 @@ function writeGuideSheet_(ss) {
   });
   row(
     '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → modal [▶ Open Apps Script editor]',
-    '① [👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup] → 모달 [▶ Apps Script 에디터 열기]',
+    '① [👑 Kingshot Bot ▸ 🚀 설정 ▸ 빠른 설정] → 모달 [▶ Apps Script 에디터 열기]',
     { size: 11, h: 34 },
   );
   row(
