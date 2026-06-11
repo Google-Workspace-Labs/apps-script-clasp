@@ -56,7 +56,7 @@ function notify_(embed, target, category) {
   try {
     notifySlack_(embed, target);
   } catch (e) {
-    logSystem_('ERROR', 'notify', `slack 전송 중 예외: ${e.message}`, target || '');
+    logSystem_('ERROR', 'notify', `slack send exception: ${e.message}`, target || '');
   }
 }
 
@@ -247,7 +247,7 @@ function notifySlack_(embed, target) {
         logSystem_(
           'ERROR',
           'slack',
-          `Cloudflare 차단 감지(cf-ray=${cfRay}) — 재시도 생략, 누락 처리`,
+          `Cloudflare block detected (cf-ray=${cfRay}) — skip retry, mark missed`,
           tgt,
         );
         return;
@@ -271,7 +271,7 @@ function notifySlack_(embed, target) {
         logSystem_(
           'ERROR',
           'slack',
-          `retry-after=${waitMs}ms > ${MAX_WAIT_MS * 2}ms — 재시도 생략, 누락 처리`,
+          `retry-after=${waitMs}ms > ${MAX_WAIT_MS * 2}ms — skip retry, mark missed`,
           tgt,
         );
         return;
@@ -282,7 +282,7 @@ function notifySlack_(embed, target) {
       return;
     }
   }
-  logSystem_('ERROR', 'slack', `429 재시도 ${MAX_ATTEMPTS}회 모두 실패`, tgt);
+  logSystem_('ERROR', 'slack', `429 retry failed after all ${MAX_ATTEMPTS} attempts`, tgt);
 }
 
 // ============================================================

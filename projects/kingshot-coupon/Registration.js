@@ -437,7 +437,7 @@ function apiGetSheetUrl(password) {
       return { ok: false, code: 'bad_pw' };
     }
     const url = SpreadsheetApp.getActiveSpreadsheet().getUrl();
-    logSystem_('INFO', 'db-entry', 'web — Entry(DB) 열기', '');
+    logSystem_('INFO', 'db-entry', 'web — open Entry(DB)', '');
     return { ok: true, url, message: '' };
   });
 }
@@ -924,7 +924,7 @@ function apiCleanInvalidCoupons(password) {
     logSystem_(
       'INFO',
       'coupon-clean-invalid',
-      `web — INVALID ${res.coupons}건 삭제 (${res.codes.join(', ')}), logs ${res.logs}건`,
+      `web — INVALID ${res.coupons} removed (${res.codes.join(', ')}), logs ${res.logs}`,
       res.codes.join(','),
     );
     notify_(

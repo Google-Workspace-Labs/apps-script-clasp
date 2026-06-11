@@ -128,10 +128,10 @@ function runCouponSync_(isManual) {
 
     // 5) 결과 기록 + 알림(신규가 있을 때만 Slack — 노이즈 방지)
     const summary =
-      `신규 ${registered.length}건` +
+      `new ${registered.length}` +
       (registered.length ? ` (${registered.join(', ')})` : '') +
-      (rejected.length ? ` · 거부/보류 ${rejected.length}건` : '') +
-      ` · 후보 ${candidates.length}`;
+      (rejected.length ? ` · ${rejected.length} rejected/pending` : '') +
+      ` · ${candidates.length} candidates`;
     stampSync_(startedAt, {
       ok: true,
       n: registered.length,
@@ -162,7 +162,7 @@ function runCouponSync_(isManual) {
       registered,
       rejected,
       candidates: candidates.length,
-      message: `✅ 동기화 완료 — ${summary}`,
+      message: `✅ Sync done — ${summary}`,
     };
   } catch (err) {
     // 최후 안전망 — 어떤 예외도 트리거/호출자 밖으로 새지 않음
@@ -175,7 +175,7 @@ function syncFail_(reason, isManual) {
   const now = new Date();
   try {
     stampSync_(now, { ok: false, reason: String(reason).slice(0, 150) });
-    logSystem_('WARN', 'sync', `동기화 실패: ${reason}`, '');
+    logSystem_('WARN', 'sync', `sync failed: ${reason}`, '');
     notify_(
       {
         title: nt('sync_fail_t'),

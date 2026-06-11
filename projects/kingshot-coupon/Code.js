@@ -47,21 +47,7 @@ function getSheet_(logicalName) {
   if (!actualName) {
     throw new Error(`알 수 없는 시트 키: ${logicalName}`);
   }
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(actualName);
-  if (!sheet) {
-    // 마이그레이션: 구버전(이모지 없는) 이름으로 찾으면 새 이름으로 자동 rename.
-    // 데이터는 그대로 보존되고 탭 이름만 바뀜. 첫 접근 시 1회만 동작.
-    const baseName = actualName.replace(/^[^A-Za-z]+/, '');
-    if (baseName && baseName !== actualName) {
-      const legacy = ss.getSheetByName(baseName);
-      if (legacy) {
-        legacy.setName(actualName);
-        sheet = legacy;
-      }
-    }
-  }
-  return sheet || null;
+  return SpreadsheetApp.getActiveSpreadsheet().getSheetByName(actualName) || null;
 }
 
 /** getSheet_ 와 같지만 없으면 안내 메시지 포함 throw — I/O 함수 진입 시 사용 */
@@ -295,19 +281,7 @@ function setupSheetsSilently_() {
   const created = [];
 
   for (const def of defs) {
-    // 새 이름(이모지)로 있으면 건너뜀. 없으면 구버전(이모지 없는) 이름을 찾아 rename 으로 흡수.
-    let existing = ss.getSheetByName(def.name);
-    if (!existing) {
-      const baseName = def.name.replace(/^[^A-Za-z]+/, '');
-      if (baseName && baseName !== def.name) {
-        const legacy = ss.getSheetByName(baseName);
-        if (legacy) {
-          legacy.setName(def.name);
-          existing = legacy;
-        }
-      }
-    }
-    if (existing) {
+    if (ss.getSheetByName(def.name)) {
       continue;
     }
     const sheet = ss.insertSheet(def.name);
@@ -699,7 +673,7 @@ function runCouponBatch_() {
           logSystem_(
             'WARN',
             'dedup-leak',
-            `hasWork 통과한 ${user.fid} 가 verifyPlayer 단계에서 dedup 히트 — hasWork 로직 점검 필요`,
+            `hasWork-passed fid ${user.fid} hit dedup at verifyPlayer — review hasWork logic`,
             user.fid,
           );
         }
@@ -1043,7 +1017,7 @@ function cleanInvalidCoupons() {
   logSystem_(
     'INFO',
     'coupon-clean-invalid',
-    `manual via menu — INVALID ${res.coupons}건 삭제 (${res.codes.join(', ')}), logs ${res.logs}건`,
+    `manual via menu — INVALID ${res.coupons} removed (${res.codes.join(', ')}), logs ${res.logs}`,
     res.codes.join(','),
   );
   ui.alert(
@@ -1065,7 +1039,7 @@ function logSystem_(level, source, msg, target) {
   try {
     const config = getConfig();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = getSheet_('systemLogs'); // 구버전 이름 자동 마이그레이션 포함
+    let sheet = getSheet_('systemLogs');
     if (!sheet) {
       sheet = ss.insertSheet(config.sheets.systemLogs);
       sheet
