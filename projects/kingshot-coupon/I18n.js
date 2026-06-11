@@ -47,7 +47,7 @@ const SLACK_MSG = {
     user_reg_d: (d) =>
       `🏷️ **${d.nick || '(닉네임 없음)'}**\n🆔 \`${d.fid}\`  ·  👥 ${d.before} → ${d.after}명`,
     sched_user_t: '⏱ 배치 예약 (유저 등록)',
-    sched_user_d: '약 3분 뒤 자동 배치 — 신규 유저에 활성 쿠폰 발급',
+    sched_user_d: '약 3분 뒤 자동 배치\n신규 유저에 활성 쿠폰 발급',
     slack_ok_t: '✅ Slack 연동 완료',
     slack_ok_d: '이 채널로 알림이 전송됩니다. (테스트 메시지)',
     slack_on_t: (d) => `🔔 Slack 알림: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
@@ -81,7 +81,7 @@ const SLACK_MSG = {
       return `🎟 \`${d.code}\`\n📍 상태: **${d.status}** _(${note})_`;
     },
     sched_cpn_t: '⏱ 배치 예약 (쿠폰 등록)',
-    sched_cpn_d: (d) => `약 30초 뒤 자동 배치 — 신규 쿠폰 \`${d.code}\` 전 유저에 발급`,
+    sched_cpn_d: (d) => `약 30초 뒤 자동 배치\n신규 쿠폰 \`${d.code}\` 전 유저에 발급`,
     batch_now_t: '⚡ 즉시 배치 실행',
     batch_now_d: '수동 트리거 — 약 30초 뒤 자동 시작',
     clean_t: '🗑 오타 코드 정리',
@@ -229,7 +229,7 @@ const SLACK_MSG = {
     user_reg_d: (d) =>
       `🏷️ **${d.nick || '(no nickname)'}**\n🆔 \`${d.fid}\`  ·  👥 ${d.before} → ${d.after}`,
     sched_user_t: '⏱ Batch scheduled (user)',
-    sched_user_d: 'Auto-batch in ~3 min — delivering active coupons to the new user',
+    sched_user_d: 'Auto-batch in ~3 min\nDelivering active coupons to the new user',
     slack_ok_t: '✅ Slack connected',
     slack_ok_d: 'Alerts will be sent to this channel. (test message)',
     slack_on_t: (d) => `🔔 Slack alerts: ${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}`,
@@ -259,7 +259,7 @@ const SLACK_MSG = {
       return `🎟 \`${d.code}\`\n📍 status: **${d.status}** _(${note})_`;
     },
     sched_cpn_t: '⏱ Batch scheduled (coupon)',
-    sched_cpn_d: (d) => `Auto-batch in ~30s — delivering new coupon \`${d.code}\` to all users`,
+    sched_cpn_d: (d) => `Auto-batch in ~30s\nDelivering new coupon \`${d.code}\` to all users`,
     batch_now_t: '⚡ Run batch now',
     batch_now_d: 'Manual trigger — auto-starts in ~30s',
     clean_t: '🗑 Typo codes cleaned',
