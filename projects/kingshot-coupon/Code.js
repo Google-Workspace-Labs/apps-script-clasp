@@ -270,15 +270,13 @@ function setupSheetsSilently_() {
  */
 function writeGuideSheet_(ss) {
   const sheet = ss.insertSheet(GUIDE_SHEET_NAME, 0);
-  // 좌측 영어(A:F) | 간격 G | 우측 한국어(H:M)
-  sheet.setColumnWidth(1, 28);
-  for (let c = 2; c <= 6; c++) {
-    sheet.setColumnWidth(c, 150);
+  // 좌(영어 A:E) | 간격 F | 우(한국어 G:K) — 빈 열 없이 타이트하게
+  for (let c = 1; c <= 5; c++) {
+    sheet.setColumnWidth(c, 128);
   }
-  sheet.setColumnWidth(7, 22);
-  sheet.setColumnWidth(8, 28);
-  for (let c = 9; c <= 13; c++) {
-    sheet.setColumnWidth(c, 150);
+  sheet.setColumnWidth(6, 44);
+  for (let c = 7; c <= 11; c++) {
+    sheet.setColumnWidth(c, 128);
   }
 
   let r = 0;
@@ -291,15 +289,15 @@ function writeGuideSheet_(ss) {
     if (o.italic) rng.setFontStyle('italic');
     if (o.center) rng.setHorizontalAlignment('center');
   };
-  // 좌=영어(A:F), 우=한국어(H:M), 같은 행
+  // 좌=영어(A:E), 우=한국어(G:K), 같은 행
   const row = (en, ko, o) => {
     r++;
     o = o || {};
-    const L = sheet.getRange(r, 1, 1, 6).merge();
-    const R = sheet.getRange(r, 8, 1, 6).merge();
+    const L = sheet.getRange(r, 1, 1, 5).merge();
+    const R = sheet.getRange(r, 7, 1, 5).merge();
     if (o.formula) {
       sheet.getRange(r, 1).setFormula(en);
-      sheet.getRange(r, 8).setFormula(ko);
+      sheet.getRange(r, 7).setFormula(ko);
     } else {
       L.setValue(en);
       R.setValue(ko);
@@ -308,11 +306,11 @@ function writeGuideSheet_(ss) {
     style(R, o);
     sheet.setRowHeight(r, o.h || 24);
   };
-  // 전체폭 A:M
+  // 전체폭 A:K
   const full = (text, o) => {
     r++;
     o = o || {};
-    style(sheet.getRange(r, 1, 1, 13).merge().setValue(text), o);
+    style(sheet.getRange(r, 1, 1, 11).merge().setValue(text), o);
     sheet.setRowHeight(r, o.h || 24);
   };
   const gap = (h) => {
