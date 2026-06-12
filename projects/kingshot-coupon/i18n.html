@@ -55,6 +55,28 @@
           url_not_set: '· URL 미설정',
           slack_status_set: '✅ 설정됨',
           slack_status_unset: '⚠️ 미설정',
+          man_btn: '📖 설명서',
+          man_t1: '🎯 이 앱은?',
+          man_b1:
+            '킹샷 <b>쿠폰(교환 코드)을 등록된 멤버에게 자동으로 발급</b>해주는 도구예요. 멤버는 Player ID만 등록해두면 새 쿠폰이 들어올 때마다 자동으로 받습니다.',
+          man_t2: '👤 유저 등록',
+          man_b2:
+            '멤버의 <b>Player ID</b>를 입력 → <b>조회</b> → 등록.<br />• Player ID는 게임 좌상단 아바타에서 확인<br />• 등록되면 약 <b>3분 뒤 자동 배치</b>로 현재 활성 쿠폰을 받아요<br />• 결과는 Slack으로 전송(설정 시)',
+          man_t3: '🎁 교환 코드 등록',
+          man_b3:
+            '받은 <b>교환(기프트) 코드</b>를 입력 → 등록.<br />• 유효한 새 코드면 <b>배치가 돌아 전 멤버에게 발급</b><br />• 존재하지 않거나 만료된 코드는 <b>자동 거부</b><br />• 중복 등록도 자동 정리',
+          man_t4: '🔒 관리 비밀번호',
+          man_b4:
+            '변경·삭제 같은 <b>관리 동작</b>에 4자리 비밀번호가 필요해요.<br />• 비밀번호는 <b>배포자만</b> 알아요 — 시트 <b>📖 Guide</b> 탭에서 확인<br />• 일반 멤버는 등록·조회만 하면 되고 비밀번호는 필요 없어요',
+          man_t5: '⚙️ 관리 설정',
+          man_b5:
+            '운영자 전용 설정 묶음 (비번 입력 후 펼침).<br />• <b>쿠폰 자동만료(일)</b>: N일 지난 쿠폰 자동 비활성 (0=끔, 기본 7)<br />• <b>즉시 배치 실행</b>: 지금 바로 발급 1회 (보통 자동이라 거의 안 씀)<br />• <b>자동 쿠폰 동기화</b>: 커뮤니티 소스에서 신규 쿠폰을 6시간마다 자동 등록<br />• <b>Slack 알림</b>: 결과를 Slack 채널로. URL·언어 설정 + <b>알림 카테고리</b>(배치·유저·쿠폰·설정·동기화 등 받을 알림을 항목별로 켜고 끄기)',
+          man_t6: '📋 목록 관리 (유저·쿠폰)',
+          man_b6:
+            '목록에서 직접 관리해요 (비번 필요).<br />• <b>토글</b>: 활성↔비활성 (비활성은 배치에서 제외, 데이터는 유지)<br />• <b>✕</b>: 삭제<br />• <b>검색·필터</b>(전체/활성/비활성)로 빠르게 찾기<br />• 💡 쿠폰은 자동만료되니 수동 비활성은 보통 불필요 — 원하면 직접도 OK',
+          man_t7: '❓ 자주 묻는 질문',
+          man_b7:
+            '• <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초) + 정기 스케줄<br />• <b>비밀번호를 모르겠어요</b> 시트 <b>📖 Guide</b> 탭에서 확인(배포자 전용)<br />• <b>친구가 복사하면?</b> Slack·설정값은 복사 안 됨 → 각자 새로 설정',
           need_id: '❌ ID 를 입력하세요.',
           looking_up: '⏳ 조회 중...',
           lookup_failed: '조회 실패',
@@ -210,6 +232,28 @@
           url_not_set: '· URL not set',
           slack_status_set: '✅ Configured',
           slack_status_unset: '⚠️ Not set',
+          man_btn: '📖 Manual',
+          man_t1: '🎯 What is this?',
+          man_b1:
+            'A tool that <b>auto-delivers Kingshot gift codes to registered members</b>. Once a member registers their Player ID, they automatically receive every new code.',
+          man_t2: '👤 Register user',
+          man_b2:
+            "Enter a member's <b>Player ID</b> → <b>Look up</b> → register.<br />• Find the Player ID via the avatar at the game's top-left<br />• After registering, an <b>auto-batch in ~3 min</b> delivers all active codes<br />• Results are sent to Slack (if set up)",
+          man_t3: '🎁 Register gift code',
+          man_b3:
+            'Enter a <b>gift code</b> → register.<br />• A valid new code triggers a <b>batch that delivers it to all members</b><br />• Nonexistent or expired codes are <b>auto-rejected</b><br />• Duplicate entries are auto-cleaned',
+          man_t4: '🔒 Admin password',
+          man_b4:
+            'A 4-digit password is required for <b>admin actions</b> like changes/deletes.<br />• Only the <b>deployer</b> knows it — see the <b>📖 Guide</b> tab in the sheet<br />• Regular members only register/look up and don’t need the password',
+          man_t5: '⚙️ Admin settings',
+          man_b5:
+            'Deployer-only settings (expand after entering the password).<br />• <b>Coupon auto-expiry (days)</b>: auto-disable codes older than N days (0=off, default 7)<br />• <b>Run batch now</b>: deliver once right now (usually automatic, rarely needed)<br />• <b>Auto coupon sync</b>: auto-register new codes from the community source every 6h<br />• <b>Slack alerts</b>: send results to a Slack channel. Set URL·language + <b>notification categories</b> (toggle which events to receive: batch·user·coupon·settings·sync)',
+          man_t6: '📋 Managing lists (users·coupons)',
+          man_b6:
+            'Manage directly from the lists (password required).<br />• <b>Toggle</b>: active↔inactive (inactive is excluded from the batch, data kept)<br />• <b>✕</b>: delete<br />• <b>Search·filter</b> (All/Active/Inactive) to find quickly<br />• 💡 Coupons auto-expire, so manual deactivation is usually unnecessary — you can still do it manually',
+          man_t7: '❓ FAQ',
+          man_b7:
+            "• <b>When does the batch run?</b> Auto on user/coupon registration (~3 min/30s) + scheduled<br />• <b>I don't know the password</b> See the <b>📖 Guide</b> tab in the sheet (deployer only)<br />• <b>What if a friend copies it?</b> Slack/settings don't copy → each sets up their own",
           need_id: '❌ Enter an ID.',
           looking_up: '⏳ Looking up...',
           lookup_failed: 'Lookup failed',

@@ -78,7 +78,8 @@
         align-items: center;
         gap: 8px;
       }
-      .entry-btn {
+      .entry-btn,
+      .man-btn {
         width: auto;
         padding: 5px 12px;
         font-size: 11px;
@@ -89,6 +90,11 @@
         border: 1.5px solid var(--gold);
         box-shadow: 0 2px 0 rgba(120, 90, 30, 0.18);
         white-space: nowrap;
+      }
+      /* 📖 설명서 버튼: 펼친 상태 강조 (모바일에서도 항상 노출 — entry-btn 과 달리 숨기지 않음) */
+      .man-btn.on {
+        background: linear-gradient(180deg, var(--gold) 0%, var(--gold-d) 100%);
+        color: #fff;
       }
       .entry-btn:active {
         transform: translateY(1px);
@@ -158,7 +164,7 @@
         border: 1px solid #e3dcc8;
         background: var(--field);
         color: var(--ink);
-        font-size: 15px;
+        font-size: 16px; /* iOS 포커스 자동줌 방지: 16px 미만이면 클릭 시 화면 확대됨 */
         font-weight: 700;
         outline: none;
       }
@@ -283,6 +289,39 @@
         color: #34c759;
         vertical-align: -1px;
         margin-left: 2px;
+      }
+      /* 📖 사용 설명서 아코디언 */
+      .macc {
+        border-bottom: 1px dashed #d8cda6;
+      }
+      .macc:last-child {
+        border-bottom: 0;
+      }
+      .macc-h {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 9px 2px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink);
+        cursor: pointer;
+      }
+      .macc-c {
+        color: #34c759;
+        font-size: 13px;
+        margin-left: 8px;
+        flex: 0 0 auto;
+      }
+      .macc-b {
+        padding: 0 2px 12px;
+        font-size: 12.5px;
+        line-height: 1.65;
+        color: var(--ink-soft);
+      }
+      .macc-b b {
+        color: var(--ink);
+        font-weight: 700;
       }
       .settings textarea {
         width: 100%;
@@ -450,7 +489,7 @@
       .msearch {
         width: 100%;
         padding: 9px 12px !important;
-        font-size: 14px !important;
+        font-size: 16px !important; /* iOS 포커스 자동줌 방지 */
         margin: 4px 0 0 !important;
         box-sizing: border-box;
       }
@@ -774,11 +813,91 @@
         <h2>
           <span class="hleft">
             <span data-i18n="m_manage">🛠 관리</span>
+            <button id="manBtn" class="man-btn" data-i18n="man_btn" onclick="toggleManual()">
+              📖 설명서
+            </button>
             <button class="entry-btn" onclick="openEntryDB()">🗄️ Entry</button>
           </span>
           <span id="manageTs" class="hts"></span>
         </h2>
         <div class="divider"></div>
+
+        <!-- 📖 사용 설명서 (헤더 '📖 설명서' 버튼으로 토글, 비번 불필요 — 읽기용) -->
+        <div class="dchelp" style="margin-top: 2px">
+          <div id="manualBody" style="display: none">
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t1">🎯 이 앱은?</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b1" style="display: none">
+                킹샷 <b>쿠폰(교환 코드)을 등록된 멤버에게 자동으로 발급</b>해주는 도구예요. 멤버는
+                Player ID만 등록해두면 새 쿠폰이 들어올 때마다 자동으로 받습니다.
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t2">👤 유저 등록</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b2" style="display: none">
+                멤버의 <b>Player ID</b>를 입력 → <b>조회</b> → 등록.<br />• Player ID는 게임 좌상단
+                아바타에서 확인<br />• 등록되면 약 <b>3분 뒤 자동 배치</b>로 현재 활성 쿠폰을 받아요<br />•
+                결과는 Slack으로 전송(설정 시)
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t3">🎁 교환 코드 등록</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b3" style="display: none">
+                받은 <b>교환(기프트) 코드</b>를 입력 → 등록.<br />• 유효한 새 코드면
+                <b>배치가 돌아 전 멤버에게 발급</b><br />• 존재하지 않거나 만료된 코드는 <b>자동 거부</b
+                ><br />• 중복 등록도 자동 정리
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t4">🔒 관리 비밀번호</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b4" style="display: none">
+                변경·삭제 같은 <b>관리 동작</b>에 4자리 비밀번호가 필요해요.<br />• 비밀번호는
+                <b>배포자만</b> 알아요 — 시트 <b>📖 Guide</b> 탭에서 확인<br />• 일반 멤버는 등록·조회만 하면
+                되고 비밀번호는 필요 없어요
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t5">⚙️ 관리 설정</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b5" style="display: none">
+                운영자 전용 설정 묶음 (비번 입력 후 펼침).<br />• <b>쿠폰 자동만료(일)</b>: N일 지난 쿠폰
+                자동 비활성 (0=끔, 기본 7)<br />• <b>즉시 배치 실행</b>: 지금 바로 발급 1회 (보통 자동이라
+                거의 안 씀)<br />• <b>자동 쿠폰 동기화</b>: 커뮤니티 소스에서 신규 쿠폰을 6시간마다 자동
+                등록<br />• <b>Slack 알림</b>: 결과를 Slack 채널로. URL·언어 설정 +
+                <b>알림 카테고리</b>(배치·유저·쿠폰·설정·동기화 등 받을 알림을 항목별로 켜고 끄기)
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t6">📋 목록 관리 (유저·쿠폰)</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b6" style="display: none">
+                목록에서 직접 관리해요 (비번 필요).<br />• <b>토글</b>: 활성↔비활성 (비활성은 배치에서
+                제외, 데이터는 유지)<br />• <b>✕</b>: 삭제<br />• <b>검색·필터</b>(전체/활성/비활성)로 빠르게
+                찾기<br />• 💡 쿠폰은 자동만료되니 수동 비활성은 보통 불필요 — 원하면 직접도 OK
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t7">❓ 자주 묻는 질문</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b7" style="display: none">
+                • <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초) + 정기 스케줄<br />•
+                <b>비밀번호를 모르겠어요</b> 시트 <b>📖 Guide</b> 탭에서 확인(배포자 전용)<br />•
+                <b>친구가 복사하면?</b> Slack·설정값은 복사 안 됨 → 각자 새로 설정
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div class="settings">
           <div class="slabel">
@@ -1212,8 +1331,8 @@
         }
       }
 
-      // 오늘 비밀번호(KST MMdd) — 서버 checkDatePassword_ 와 동일 규칙.
-      // MMDD 는 비밀이 아니라 '오늘 날짜'이므로 클라이언트 선검증해도 보안 약화 없음.
+      // 관리 비밀번호 기대값 계산 — 서버 checkDatePassword_ 와 동일 규칙.
+      // 가벼운 게이트라 클라 선검증해도 보안 약화 없음(서버서 재검증).
       function todayPwKST() {
         const now = new Date();
         const kst = new Date(now.getTime() + (now.getTimezoneOffset() + 540) * 60000);
@@ -1242,7 +1361,7 @@
       }
 
       // ── Entry (DB) — 연동 DB 바로가기 (비밀번호 게이트) ──
-      // 익명 웹앱이라 신원확인 불가 → 오늘 MMDD 비번으로 가벼운 게이트.
+      // 익명 웹앱이라 신원확인 불가 → 관리 비번으로 가벼운 게이트.
       // 실제 진입은 구글 공유 권한이 다시 통제(권한 없으면 "액세스 요청" 벽).
       // ★ 비번을 '먼저' 검증한 뒤, 통과했을 때만 탭을 연다(틀린 비번에 창 깜빡임 없음).
       function openEntryDB() {
@@ -1991,7 +2110,22 @@
         caret.textContent = open ? '▲' : '▼';
         caret.style.color = open ? '#e67e22' : '#34c759';
       }
-      // ⚙️ 관리 설정 블록 접기/펼치기. 펼칠 때만 비번(MMDD) 검증 — 캐주얼 유저 poke 차단.
+      // 📖 사용 설명서 — 바깥 접기 + 안쪽 주제 아코디언
+      function toggleManual() {
+        const b = $('manualBody');
+        const open = b.style.display === 'none';
+        b.style.display = open ? 'block' : 'none';
+        $('manBtn').classList.toggle('on', open);
+      }
+      function toggleAcc(head) {
+        const body = head.nextElementSibling;
+        const caret = head.querySelector('.macc-c');
+        const open = body.style.display === 'none';
+        body.style.display = open ? 'block' : 'none';
+        caret.textContent = open ? '▲' : '▼';
+        caret.style.color = open ? '#e67e22' : '#34c759';
+      }
+      // ⚙️ 관리 설정 블록 접기/펼치기. 펼칠 때만 비번 검증 — 캐주얼 유저 poke 차단.
       // 리스트(유저·쿠폰)는 항상 보임. 접기는 비번 불필요(무해).
       function toggleSettings() {
         const block = $('settingsBlock');
