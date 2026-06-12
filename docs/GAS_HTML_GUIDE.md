@@ -330,6 +330,28 @@ function include(filename) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 ```
 
+### ⚠️ iOS 입력 포커스 자동 줌 방지
+
+iOS Safari·카카오 인앱 등 WebKit 브라우저는 **`<input>`·`<textarea>`의 `font-size`가 16px 미만이면, 그 칸을 탭(포커스)할 때 자동으로 확대(zoom)**한다.
+→ 페이지가 살짝 넓어지며 **여백이 흔들리는** 것처럼 보인다 (위치마다 줌 정도가 달라 들쭉날쭉).
+
+```css
+/* ❌ 15px → 칸 탭하면 화면 확대 */
+input {
+  font-size: 15px;
+}
+
+/* ✅ 16px 이상 → 줌 안 일어남 */
+input,
+textarea {
+  font-size: 16px;
+}
+```
+
+- **편집 가능한 모든 칸**(text·password·search·textarea)에 16px 이상 적용
+- placeholder 폰트는 작아도 무관 (줌 판정은 입력칸 _본문_ `font-size` 기준)
+- 디자인상 더 작게 보이고 싶어도 **16px가 하한선** — 그 아래는 줌 발생
+
 ---
 
 ## 6. 다크모드 지원
