@@ -260,14 +260,30 @@ function buildProfile_(fid, data) {
 }
 
 // ============================================================
-// 유저 관리 (웹 UI) — 비밀번호 = 오늘 날짜 MMDD(KST)
+// 유저 관리 (웹 UI) — 비밀번호 = 접속 기기의 오늘 날짜(MMdd, any-timezone)
 // ============================================================
 
-/** 오늘 날짜(MMdd, KST) 비밀번호 확인. 입력은 숫자만 추려 4자리로 비교(문자열). */
+/**
+ * 비밀번호 확인 = "접속한 기기의 오늘 날짜 4자리(MMdd)".
+ * 특정 timezone 에 묶지 않음 — 관리자가 어디서 접속하든 현지 날짜를 그대로 입력하면 통과.
+ * 전 세계 표준시 범위(UTC-12 ~ UTC+14)에서 지금 '오늘'인 MMdd 집합(많아야 2~3개)과 비교.
+ * 검증은 서버에서만(클라는 입력만) — 소스에 "비번=날짜" 패턴이 드러나지 않음. 단순 잠금(장난 방지).
+ */
 function checkDatePassword_(password) {
-  const today = Utilities.formatDate(new Date(), 'Asia/Seoul', 'MMdd');
   const input = String(password ?? '').replace(/\D/g, '');
-  return input.padStart(4, '0') === today;
+  if (input.length !== 4) {
+    return false;
+  }
+  const nowMs = new Date().getTime();
+  for (let off = -12; off <= 14; off++) {
+    const d = new Date(nowMs + off * 3600000);
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    if (mm + dd === input) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** 유저 active 토글 (웹 UI). @returns {{ok:boolean, message:string}} */
@@ -426,7 +442,7 @@ function apiListManage() {
 /**
  * 연동된 스프레드시트(시트) URL 반환 — 'Entry (DB)' 바로가기용.
  *  - 웹앱이 익명(ANYONE_ANONYMOUS) 접근이라 서버가 접속자를 식별할 수 없음 → 신원확인 불가.
- *    따라서 비밀번호(오늘 MMDD)로 가벼운 게이트만 건다.
+ *    따라서 비밀번호(접속 기기의 오늘 날짜 MMdd, any-timezone)로 가벼운 게이트만 건다.
  *  - 비번은 약한 잠금이지만, 실제 시트 진입은 **구글 시트 공유 권한**이 다시 통제한다.
  *    → 권한 없는 지인은 URL 을 받아도 구글이 "액세스 요청" 벽으로 차단(진짜 자물쇠).
  * @returns {{ok:boolean, url?:string, message:string}}

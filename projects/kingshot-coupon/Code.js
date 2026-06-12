@@ -32,7 +32,7 @@ const COL = {
 
 /**
  * onboarding 가이드 시트명.
- * 배포자가 [🚀 Setup ▸ 📖 시작하기 시트 생성] 으로 1회 수동 생성 후 멤버에게 공유.
+ * 배포자가 [🚀 Setup ▸ 📖 Guide 시트 생성] 으로 1회 수동 생성 후 멤버에게 공유.
  * 멤버가 카피하면 자동으로 함께 복제되어 첫 안내 역할 — 끝나면 본인이 삭제 가능.
  */
 const GUIDE_SHEET_NAME = '📖 Guide';
@@ -166,7 +166,7 @@ function setMenuLang_(lang) {
  * Quick Setup 마법사 (모달 안내).
  *   - 비개발자가 시트만 복사받은 상황에서 배포·알림 단계가 무엇인지 한 화면에서 안내
  *   - 웹앱 배포 → Slack 설정 (2단계)
- *   - 시트 생성·권한 단계는 이 모달이 아닌 [📖 시작하기] 시트가 담당
+ *   - 시트 생성·권한 단계는 이 모달이 아닌 [📖 Guide] 시트가 담당
  *     (모달은 권한 동의 후에야 열리는 paradox 회피)
  */
 function quickSetupWizard() {
@@ -219,7 +219,7 @@ function quickSetupWizard() {
     <div class="step">
       <h3><span class="badge">2</span>Slack alerts (optional)</h3>
       <p>To receive batch results in Slack, open the <code>/exec</code> web app →
-         <b>🛠 Admin</b> panel → password (today's MMDD, 4 digits) → save the Webhook URL.
+         <b>🛠 Admin</b> panel → password (today’s date on your device, 4 digits e.g. <code>0613</code>) → save the Webhook URL.
          (The Help button can copy a GPT prompt for you.)</p>
     </div>
 
@@ -250,7 +250,7 @@ function quickSetupWizard() {
     <div class="step">
       <h3><span class="badge">2</span>Slack 알림 (선택)</h3>
       <p>배치 결과를 Slack 으로 받고 싶다면 위 웹앱 <code>/exec</code> 의
-         <b>🛠 관리</b> 패널 → 비밀번호(오늘 MMDD 4자리) → Webhook URL 저장.
+         <b>🛠 관리</b> 패널 → 비밀번호(접속 기기의 오늘 날짜 4자리, 예 <code>0613</code>) → Webhook URL 저장.
          (도움말 버튼에 GPT 프롬프트 복사 기능 있음.)</p>
     </div>
 
@@ -297,7 +297,7 @@ function setupSheetsSilently_() {
 }
 
 /**
- * 📖 시작하기 가이드 시트 작성 (내부 헬퍼).
+ * 📖 Guide 시트 작성 (내부 헬퍼).
  *   - leftmost(index=0) 에 신규 시트 삽입
  *   - 셀 병합 + 색상/굵기로 안내 카드 형태 구성
  *   - 격자선 숨김 (setHiddenGridlines)
@@ -468,8 +468,8 @@ function writeGuideSheet_(ss) {
     size: 11,
   });
   row(
-    '⑦ Changing [🛠 Admin] settings needs 🔑 password (today MMDD, 4 digits)',
-    '⑦ [🛠 관리] 설정 변경은 🔑 비밀번호(오늘 MMDD 4자리) 필요',
+    '⑦ 🔑 Password for admin actions (changes/deletes/settings) = today’s date on YOUR device, 4 digits (MMDD, e.g. Jun 13 → 0613). Works from any country/timezone',
+    '⑦ 🔑 관리 동작(변경·삭제·설정) 비밀번호 = 접속한 기기의 오늘 날짜 4자리(MMDD, 예: 6월13일→0613). 어느 나라/기기서 접속해도 현지 날짜로 됨',
     { size: 11 },
   );
   gap();
@@ -934,11 +934,11 @@ function setupSheets() {
 }
 
 /**
- * 📖 시작하기 가이드 시트를 생성한다 — **배포자가 템플릿 공유 전 1회 실행**.
+ * 📖 Guide 시트를 생성한다 — **배포자가 템플릿 공유 전 1회 실행**.
  *
  * 워크플로:
  *   1) 배포자가 빈 시트 만든 뒤 clasp push → 메뉴 노출
- *   2) [🚀 Setup ▸ 📖 시작하기 시트 생성] 클릭 → leftmost 위치에 가이드 생성
+ *   2) [🚀 Setup ▸ 📖 Guide 시트 생성] 클릭 → leftmost 위치에 가이드 생성
  *   3) (선택) Setup Sheets 도 실행해 시트 4개 미리 채워두기
  *   4) 가이드 탭을 활성 상태로 둔 채 멤버에게 시트 공유/카피 허용
  *   5) 멤버는 카피한 시트 열면 가이드 탭이 자동 활성 → 안내 따라 진행

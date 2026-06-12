@@ -27,6 +27,9 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 | `logs`        | time · fid · code · result · message        | dedup 원천 (자동 기록)       |
 | `system_logs` | time · level · source · message · target    | 진단 로그 (1000행 자동 회전) |
 
+> 실제 시트 탭 이름엔 이모지 prefix 가 붙는다: `👤 users` · `🎟️ coupons` · `🧾 logs` ·
+> `🩺 system_logs` (위 표/본문은 가독성 위해 식별자만 표기). 온보딩 가이드 탭은 `📖 Guide`.
+
 `result` 값: `SUCCESS`, `ALREADY_USED`, `INVALID_CODE`, `EXPIRED`, `EXPIRED_AGE`,
 `RATE_LIMITED`, `CAPTCHA_REQUIRED`, `INVALID_FID`, `ERROR`. `SUCCESS`/`ALREADY_USED`
 조합은 다음 실행에서 자동 skip (중복 요청 방지).
@@ -54,10 +57,10 @@ sorted("key=value&...")  +  SALT   →   MD5(hex)
 
 > 동료가 만든 👑 Kingshot Bot 시트를 카피해서 그대로 쓰고 싶을 때.
 
-**복사 → 📖 시작하기 시트 안내대로 → 끝.** 코딩 지식 X.
+**복사 → 📖 Guide 시트 안내대로 → 끝.** 코딩 지식 X.
 
 1. **시트 복사** — 원본 시트 메뉴 `파일 ▸ 사본 만들기` (Apps Script 포함되어 복사됨)
-2. **첫 오픈** — 복사한 시트를 열면 **`📖 시작하기`** 탭이 자동으로 보임
+2. **첫 오픈** — 복사한 시트를 열면 **`📖 Guide`** 탭이 자동으로 보임
 3. **가이드 따라하기** — 그 탭 안의 1단계·2단계 그대로 진행
    - 1단계: `🚀 Setup ▸ Setup Sheets` 클릭 → 권한 동의 → 시트 4개 생성
      - ⚠️ "Google에서 확인하지 않은 앱" 경고가 떠도 정상:
@@ -67,7 +70,8 @@ sorted("key=value&...")  +  SALT   →   MD5(hex)
      에디터 우측 상단 `배포 ▸ 새 배포` → `⚙️ 유형 ▸ 웹 앱` →
      실행: **나**, 액세스: **모든 사용자** → `배포` → `액세스 승인`
      (권한 절차는 1단계 ⓐⓑⓒ 동일) → 나오는 `/exec` URL **[복사]** → 브라우저로 접속 확인
-   - `/exec` 의 **🛠 관리** 패널에서 설정 변경(Slack · TTL 등) 은 🔑 비밀번호(오늘 MMDD 4자리) 필요
+   - `/exec` 의 **🛠 관리** 패널에서 설정 변경(Slack · TTL 등) 은 🔑 비밀번호 필요
+     (접속 기기의 **오늘 날짜 4자리** MMDD, 예: 6월13일→`0613`. 어느 timezone서 접속해도 현지 날짜로 통과)
 4. **(완료 후) 가이드 시트 정리** — 안 필요하면 탭 우클릭 `Delete sheet` 로 삭제해도 OK
 
 > 💡 막히면 언제든 `👑 Kingshot Bot ▸ 🚀 Setup ▸ Quick Setup` 다시 열기.
@@ -78,12 +82,12 @@ sorted("key=value&...")  +  SALT   →   MD5(hex)
 
 1. 빈 Google Sheets 생성 + Apps Script 코드 push
 2. 시트 열기 → 메뉴 노출 확인
-3. `👑 Kingshot Bot ▸ 🚀 Setup ▸ 📖 시작하기 시트 생성 (배포자 1회)` 클릭
+3. `👑 Kingshot Bot ▸ 🚀 Setup ▸ 📖 Guide 시트 생성 (배포자 1회)` 클릭
    - 권한 동의창 → 모든 권한 허용
-   - leftmost 위치에 `📖 시작하기` 탭 생성됨 + 자동 활성화
+   - leftmost 위치에 `📖 Guide` 탭 생성됨 + 자동 활성화
 4. (선택) `Setup Sheets` 도 실행해 시트 4개 미리 만들어 두기
-5. **`📖 시작하기` 탭을 활성 상태로 둔 채** 시트 공유/카피 권한 부여
-   - 멤버가 카피하면 카피본도 동일하게 `📖 시작하기` 가 첫 활성 탭
+5. **`📖 Guide` 탭을 활성 상태로 둔 채** 시트 공유/카피 권한 부여
+   - 멤버가 카피하면 카피본도 동일하게 `📖 Guide` 가 첫 활성 탭
 
 이렇게 해두면 멤버는 카피 → 열기만 해도 즉시 가이드를 보게 되어, "뭐 부터 해야 하지?" 헤맬 일 없음.
 
@@ -106,7 +110,7 @@ container-bound 스크립트 (스프레드시트에 연결).
    ```
 4. **웹앱 배포**: 에디터 → Deploy ▸ New deployment ▸ Web app
    (Execute as: Me / Access: Anyone) → `/exec` URL 공유
-5. (선택, 멤버에게 공유 예정이면) `🚀 Setup ▸ 📖 시작하기 시트 생성` 클릭 →
+5. (선택, 멤버에게 공유 예정이면) `🚀 Setup ▸ 📖 Guide 시트 생성` 클릭 →
    leftmost 에 onboarding 가이드 탭 생성 후 활성 상태로 두고 공유
 6. (선택) Script Properties 설정 — 아래 참고
 
@@ -116,7 +120,7 @@ container-bound 스크립트 (스프레드시트에 연결).
 | --------- | ----------------------------- | ----------------------------------------------------------- |
 | 🚀 Setup  | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)             |
 |           | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)           |
-|           | 📖 시작하기 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
+|           | 📖 Guide 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
 | ▶ 실행    | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)                 |
 |           | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)               |
 | 🛠 관리   | Deactivate User / Delete User | fid 입력 → 비활성/삭제 (시트편집자만, 비밀번호 X)           |
@@ -139,7 +143,7 @@ container-bound 스크립트 (스프레드시트에 연결).
   - **없음/만료** → 시트에 `enabled=FALSE` + `INVALID_CODE`/`EXPIRED` 로 기록 →
     같은 코드 재시도 시 **API 호출 없이 1ms 만에 차단**(dead code 캐시)
   - **캐시 히트(이미 등록 또는 죽은 것으로 확인됨)** → 즉시 사유별 메시지 (API 0회)
-- **🛠 관리** — 기본 열림(목록은 비밀번호 없이 조회), **변경/삭제·즉시 실행만 비밀번호**(오늘 MMDD 4자리)
+- **🛠 관리** — 기본 열림(목록은 비밀번호 없이 조회), **변경/삭제·즉시 실행만 비밀번호**(접속 기기의 오늘 날짜 MMDD, any-timezone)
   - 🔑 비밀번호 입력 (4자리 마스킹)
   - ⏳ 쿠폰 자동만료(TTL) 일수 설정·저장
   - ⚡ **즉시 배치 실행** — 비밀번호 + 한 클릭 → 약 30초 뒤 배치 동작 (마지막 배치 시각 인라인 표시)
@@ -296,7 +300,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
   소규모면 무방, 대규모/정기면 egress 를 GAS 밖(Cloud Run 등)으로 이전이 정답
 - **웹앱 재배포 필요**: 코드 변경 시 `/exec` 에 반영하려면 Deploy ▸ Manage
   deployments ▸ Edit ▸ New version. 트리거/배치는 재배포 없이 즉시 반영
-- **공개 링크 + 비밀번호 = 약한 보호**: MMDD(366가지)는 사실상 추측 가능 — "장난 방지"
-  수준. 강한 보호 필요하면 Script Property 비밀키로 교체
+- **공개 링크 + 비밀번호 = 가벼운 보호**: 비밀번호 = 접속 기기의 오늘 날짜(MMDD). 서버가
+  any-timezone(UTC-12~+14)으로 검증해 관리자가 어디서 접속하든 **현지 날짜**로 통과. 검증은
+  서버에서만(클라는 입력만) → 소스에 "날짜=비번" 패턴 비노출. "장난 방지"용 가벼운 잠금
 - API 는 비공식, 운영사가 스펙(엔드포인트/salt) 변경 가능
 - `.clasprc.json` 은 절대 커밋 금지 (`.gitignore` 처리됨)
