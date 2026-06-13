@@ -91,8 +91,8 @@ function onOpen() {
 
   const setupMenu = ui
     .createMenu(nt('mn_setup', null, ml))
-    .addItem(nt('mn_quick_setup', null, ml), 'quickSetupWizard')
     .addItem(nt('mn_setup_sheets', null, ml), 'setupSheets')
+    .addItem(nt('mn_quick_setup', null, ml), 'quickSetupWizard')
     .addSeparator()
     .addItem(nt('mn_create_guide', null, ml), 'createGuideSheet');
 
