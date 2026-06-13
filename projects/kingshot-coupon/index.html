@@ -567,6 +567,15 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* 최초닉(현재와 다를 때만): 작게 회색, 닉/ID 사이 별도 줄 */
+      .mrow .morig {
+        font-size: 11px;
+        color: #a89878;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       /* 타임스탬프: 날짜·시간 분리 줄바꿈 방지 */
       #lastBatchTs,
       #userTs,
@@ -1414,6 +1423,8 @@
             $('userProfile').style.display = 'flex';
             $('registerBtn').style.display = 'block';
             if (res.registered) {
+              // 조회 = 서버가 current_nickname 갱신했을 수 있음 → 리스트 캐시 즉시 패치(서버 왕복 X)
+              patchUserNickname_(p.fid, p.nickname);
               $('registerBtn').disabled = true;
               $('registerBtn').textContent = t('registered_badge');
               render('userResult', {
@@ -1577,6 +1588,20 @@
         return sw;
       }
 
+      // 조회로 알아낸 현재닉을 리스트 캐시(_allUsers)에 즉시 반영(서버 왕복 없이). 바뀌었을 때만 재렌더.
+      function patchUserNickname_(fid, currentNick) {
+        if (!_allUsers || !_allUsers.length) return;
+        for (let i = 0; i < _allUsers.length; i++) {
+          if (String(_allUsers[i].fid) === String(fid)) {
+            if ((_allUsers[i].nickname || '') !== (currentNick || '')) {
+              _allUsers[i].nickname = currentNick || '';
+              renderUsers();
+            }
+            return;
+          }
+        }
+      }
+
       function renderUsers() {
         const all = _allUsers || [];
         const on = all.filter(function (u) {
@@ -1600,6 +1625,9 @@
                 .toLowerCase()
                 .indexOf(q) !== -1 ||
               String(u.nickname || '')
+                .toLowerCase()
+                .indexOf(q) !== -1 ||
+              String(u.nicknameOrig || '')
                 .toLowerCase()
                 .indexOf(q) !== -1
             );
@@ -1631,11 +1659,18 @@
           name.className = 'mname mwrap';
           const code = document.createElement('span');
           code.className = 'mcode';
-          code.textContent = u.nickname || t('no_nick');
+          code.textContent = u.nickname || t('no_nick'); // 현재닉(서버서 current 우선)
           const meta = document.createElement('span');
           meta.className = 'mmeta';
           meta.textContent = u.fid;
           name.appendChild(code);
+          // 최초닉이 현재와 다를 때만 작게 "원래: X" (변경 이력 단서)
+          if (u.nicknameOrig && u.nicknameOrig !== u.nickname) {
+            const orig = document.createElement('span');
+            orig.className = 'morig';
+            orig.textContent = t('was_nick', u.nicknameOrig);
+            name.appendChild(orig);
+          }
           name.appendChild(meta);
           const sw = makeSwitch(u.active, function (cb) {
             toggleUserRow(u.fid, cb);

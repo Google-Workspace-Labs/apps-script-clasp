@@ -12,8 +12,8 @@
  *   - SLACK_WEBHOOK_URL      : 등록/배치 결과를 보낼 Slack Incoming Webhook URL
  *   - NOTIFY_BATCH/SCHEDULE/USER/COUPON/SETTINGS/SYNC : 카테고리별 알림 ON/OFF
  *     ('false' 면 OFF, 그 외 ON. 6개 모두 기본 ON — opt-out 정책)
- *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 100, 0 이면 무제한)
- *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 7, 0 이면 끔)
+ *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 200, 0 이면 무제한)
+ *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔)
  *   - AUTO_SYNC_ENABLED      : 외부 쿠폰 소스 자동 동기화 ON/OFF ('true' 면 ON, 기본 OFF) — Sync.js
  *   - COUPON_SOURCE_URL      : 자동 동기화 소스 JSON URL (미설정 시 Sync.js 기본 상수)
  */
@@ -40,13 +40,15 @@ function getConfig() {
   // 기본값은 검증 ON. 'false' 문자열일 때만 끈다.
   const verifyPlayer = props.getProperty('KINGSHOT_VERIFY_PLAYER') !== 'false';
 
-  // 유저 정원 (기본 100, 0 이면 무제한)
+  // 유저 정원 (기본 200, 0 이면 무제한). 200@2.5s 지연이면 봇감지 레이트는 안전 — 늘어나는 건
+  // 쿠폰 드랍당 배치 지속시간(자동 이어실행이 흡수)뿐. 더 키우려면 Property 로 오버라이드.
   const maxUsersProp = parseInt(props.getProperty('KINGSHOT_MAX_USERS'), 10);
-  const maxUsers = isNaN(maxUsersProp) ? 100 : maxUsersProp;
+  const maxUsers = isNaN(maxUsersProp) ? 200 : maxUsersProp;
 
-  // 쿠폰 자동 만료 일수 (기본 7, 0 이면 끔)
+  // 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔). 킹샷 코드 수명(7~30일)을 대부분 덮어 조기절단 방지.
+  // 실제 만료는 dead-code 캐시(API 응답)가 1콜로 잡으므로 길게 둬도 비용 ~0.
   const ttlProp = parseInt(props.getProperty('KINGSHOT_COUPON_TTL_DAYS'), 10);
-  const couponTtlDays = isNaN(ttlProp) ? 7 : ttlProp;
+  const couponTtlDays = isNaN(ttlProp) ? 30 : ttlProp;
 
   __configCache = {
     salt,

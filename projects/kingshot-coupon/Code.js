@@ -4,7 +4,8 @@
  * Kingshot Coupon - 엔트리 / 메뉴 / 배치 / 시트 I/O
  *
  * 시트 구조 (모든 컬럼 번호는 COL 상수로):
- *   users        : fid(1) | nickname(2) | active(3)  | created(4) | updated(5)
+ *   users        : fid(1) | nickname(2) | current_nickname(3) | active(4) | created(5) | updated(6)
+ *                  nickname=최초(불변), current_nickname=현재(조회/배치서 갱신). 표시는 current||nickname
  *   coupons      : code(1) | enabled(2)  | status(3) | created(4) | updated(5)
  *                  status: VALID/PENDING (등록 시) | EXPIRED/INVALID_CODE/EXPIRED_AGE (배치 자동)
  *   logs         : time(1) | fid(2) | code(3) | result(4) | message(5)   (쿠폰 redeem 결과 — dedup 원천)
@@ -24,7 +25,8 @@
  * 시트 구조 바꿀 때 이 한 곳만 수정.
  */
 const COL = {
-  users: { fid: 1, nickname: 2, active: 3, created: 4, updated: 5 },
+  // current_nickname(현재닉) 은 nickname(최초) 바로 뒤 3번. setupSheets 가 생성, 조회/배치서 갱신.
+  users: { fid: 1, nickname: 2, currentNickname: 3, active: 4, created: 5, updated: 6 },
   coupons: { code: 1, enabled: 2, status: 3, created: 4, updated: 5 },
   logs: { time: 1, fid: 2, code: 3, result: 4, message: 5 },
   systemLogs: { time: 1, level: 2, source: 3, message: 4, target: 5 },
@@ -273,7 +275,10 @@ function setupSheetsSilently_() {
   const config = getConfig();
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const defs = [
-    { name: config.sheets.users, headers: ['fid', 'nickname', 'active', 'created', 'updated'] },
+    {
+      name: config.sheets.users,
+      headers: ['fid', 'nickname', 'current_nickname', 'active', 'created', 'updated'],
+    },
     { name: config.sheets.coupons, headers: ['code', 'enabled', 'status', 'created', 'updated'] },
     { name: config.sheets.logs, headers: ['time', 'fid', 'code', 'result', 'message'] },
     { name: config.sheets.systemLogs, headers: ['time', 'level', 'source', 'message', 'target'] },
@@ -689,6 +694,8 @@ function runCouponBatch_() {
         }
         continue;
       }
+      // 로그인 성공 → 현재닉 무료 갱신(현재닉이 저장값과 다를 때만 write)
+      refreshCurrentNickname_(user.row, (login.data || {}).nickname, user.currentNickname);
     }
 
     for (const coupon of coupons) {
@@ -1301,20 +1308,43 @@ function diagnoseDedup() {
 // 시트 읽기 / 쓰기 헬퍼
 // ============================================================
 
-/** users 시트 → [{fid, nickname, active, created}] */
+/**
+ * users 시트 → [{fid, nickname(최초·불변), currentNickname(현재), active, created, row}].
+ * row 는 현재닉 write-back 용 1-based. 표시는 currentNickname || nickname.
+ */
 function readUsers_() {
   const sheet = requireSheet_('users');
-  return sheet
-    .getDataRange()
-    .getValues()
-    .slice(1) // 헤더 제외
-    .filter((r) => r[COL.users.fid - 1] !== '' && r[COL.users.fid - 1] !== null)
-    .map((r) => ({
-      fid: String(r[COL.users.fid - 1]).trim(),
-      nickname: r[COL.users.nickname - 1],
+  const values = sheet.getDataRange().getValues();
+  const out = [];
+  for (let i = 1; i < values.length; i++) {
+    const r = values[i];
+    const fid = r[COL.users.fid - 1];
+    if (fid === '' || fid === null) {
+      continue;
+    }
+    const created = r[COL.users.created - 1];
+    out.push({
+      fid: String(fid).trim(),
+      nickname: r[COL.users.nickname - 1], // 최초(불변)
+      currentNickname: r[COL.users.currentNickname - 1], // 현재
       active: isTrue_(r[COL.users.active - 1]),
-      created: r[COL.users.created - 1] instanceof Date ? r[COL.users.created - 1] : null,
-    }));
+      created: created instanceof Date ? created : null,
+      row: i + 1,
+    });
+  }
+  return out;
+}
+
+/**
+ * 현재 닉네임 갱신 — 공식 응답 닉이 저장된 current 와 다를 때만 write(무료; 조회·배치서 호출). 빈 응답이면 skip.
+ * @param {number} row 1-based @param {*} freshNick API 현재닉 @param {*} storedCur 저장된 current
+ */
+function refreshCurrentNickname_(row, freshNick, storedCur) {
+  const nn = String(freshNick || '').trim();
+  if (!nn || nn === String(storedCur || '').trim()) {
+    return;
+  }
+  requireSheet_('users').getRange(row, COL.users.currentNickname).setValue(nn);
 }
 
 /** coupons 시트 → [{code, enabled, status, created, row}] (row 는 write-back 용 1-based) */
@@ -1674,7 +1704,7 @@ function deleteUser() {
 // 등록 헬퍼 (웹앱 등록에서 사용)
 // ============================================================
 
-/** users 시트에서 fid 검색 → {nickname, row, active} 또는 null */
+/** users 시트에서 fid 검색 → {nickname(최초), currentNickname, row, active} 또는 null */
 function findUser_(fid) {
   const sheet = getSheet_('users');
   if (!sheet) {
@@ -1686,6 +1716,7 @@ function findUser_(fid) {
     if (String(values[i][COL.users.fid - 1]).trim() === target) {
       return {
         nickname: values[i][COL.users.nickname - 1],
+        currentNickname: values[i][COL.users.currentNickname - 1],
         row: i + 1,
         active: isTrue_(values[i][COL.users.active - 1]),
       };
@@ -1703,26 +1734,23 @@ function stampDate_(sheet, row, col, value) {
 }
 
 /**
- * users/coupons 시트의 created/updated 컬럼 (4,5번째) 전체를 24시간 날짜 형식으로 통일.
- * 기존 행 포함 self-healing — 시트가 자동 포맷 잃어버려도 매 append 시 복구됨.
- *
- * ⚠️ Invariant: users.created === coupons.created === 4, users.updated === coupons.updated === 5.
- *    스키마 분기 (예: coupons.created 위치 변경) 시 이 함수도 시트별 분기 필요.
- *    (현재 COL 정의에서 단언 가능)
+ * created/updated 2칸을 24시간 날짜 형식으로 통일 (createdCol 부터 2칸 — created·updated 는 인접 전제).
+ * 기존 행 포함 self-healing. createdCol 은 시트별로 다름(users=COL.users.created=5, coupons=4).
  */
-function formatDateColumns_(sheet) {
+function formatDateColumns_(sheet, createdCol) {
   const last = sheet.getLastRow();
   if (last >= 2) {
-    sheet.getRange(2, COL.users.created, last - 1, 2).setNumberFormat(DATE_NUMBER_FORMAT);
+    sheet.getRange(2, createdCol, last - 1, 2).setNumberFormat(DATE_NUMBER_FORMAT);
   }
 }
 
-/** users 시트에 추가: [fid, nickname, TRUE, created, updated] (등록 시 active 자동 TRUE) */
+/** users 시트에 추가. 신규는 nickname=current_nickname(같은 값) 둘 다 기록. */
 function addUserToSheet_(fid, nickname) {
   const sheet = requireSheet_('users');
   const now = new Date();
-  sheet.appendRow([String(fid).trim(), nickname || '', true, now, now]);
-  formatDateColumns_(sheet);
+  const nick = nickname || '';
+  sheet.appendRow([String(fid).trim(), nick, nick, true, now, now]); // [fid, 최초, 현재, active, created, updated]
+  formatDateColumns_(sheet, COL.users.created);
 }
 
 /** 현재 등록된 유저 수(데이터 행) */
@@ -1763,7 +1791,7 @@ function addCouponToSheet_(code, status, enabled) {
   const now = new Date();
   const isEnabled = enabled === undefined ? true : !!enabled;
   sheet.appendRow([String(code).trim(), isEnabled, status || '', now, now]);
-  formatDateColumns_(sheet);
+  formatDateColumns_(sheet, COL.coupons.created);
 }
 
 /** 쿠폰 검증에 쓸 fid: 설정값(KINGSHOT_VALIDATE_FID) 우선, 없으면 첫 active 유저 */

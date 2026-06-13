@@ -22,7 +22,7 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 
 | 시트          | 컬럼                                        | 비고                         |
 | ------------- | ------------------------------------------- | ---------------------------- |
-| `users`       | fid · nickname · active · created · updated | `active=TRUE` 만 배치 대상   |
+| `users`       | fid · nickname · current_nickname · active · created · updated | `active=TRUE` 만 배치 대상. nickname=최초(불변)·current_nickname=현재(조회/배치 갱신), 표시는 현재 우선 |
 | `coupons`     | code · enabled · status · created · updated | `enabled=TRUE` 만 대상       |
 | `logs`        | time · fid · code · result · message        | dedup 원천 (자동 기록)       |
 | `system_logs` | time · level · source · message · target    | 진단 로그 (1000행 자동 회전) |
@@ -216,8 +216,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
   시간 정확성 위해 jitter 제외
 - **GAS 6분 실행 제한 + 자동 이어실행**: `유저수 × 쿠폰수 × 2.5초` 가 약 5분 넘으면
   안전 중단 → **1분 뒤 자동으로 트리거 재예약**. 이미 처리분은 `logs` 의 dedup 으로 SKIP,
-  남은 조합만 다음 세션에서 호출. 100명/300조합 같은 큰 배치도 사용자 액션 없이 끝까지 완료
-- **쿠폰 TTL**: 등록 후 N일(기본 7) 지난 enabled 쿠폰은 배치 시작 시 API 호출 없이
+  남은 조합만 다음 세션에서 호출. 200명/600조합 같은 큰 배치도 사용자 액션 없이 끝까지 완료
+- **쿠폰 TTL**: 등록 후 N일(기본 30) 지난 enabled 쿠폰은 배치 시작 시 API 호출 없이
   `EXPIRED_AGE` 처리 + 로그 purge
 - **사전 dedup 체크 (verifyPlayer 보호)**: 배치 루프 시작 시 _이 유저가 처리할
   조합이 하나라도 있는지_ 먼저 확인. 모두 dedup 에 있으면 `loginPlayer` 자체를 안 부름
@@ -227,7 +227,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
   여러 멤버가 같은 만료 코드를 시도해도 킹샷 API 호출은 최초 1회뿐 → GAS 공유 IP
   rate limit 부담 ↓. 시트의 dead row 는 `enabled=FALSE` 라 배치에서도 자동 skip,
   UI 관리 패널에선 활성 코드 뒤로 정렬되어 노출 ↓
-- **유저 정원**: `KINGSHOT_MAX_USERS` (기본 100, 0=무제한). 신규 등록 시만 적용
+- **유저 정원**: `KINGSHOT_MAX_USERS` (기본 200, 0=무제한). 신규 등록 시만 적용(총 행수 기준 — 활성+비활성).
+  봇감지 안전은 정원이 아니라 **요청 지연(2.5s+jitter)** 이 좌우 — 정원↑는 쿠폰 드랍당 배치 지속시간만 늘림(자동 이어실행이 흡수)
 - **동시성**: 등록/관리 액션은 `safeApiWithLock_` 헬퍼로 `LockService` 직렬화 (race 방지).
   배치는 `tryLock(0)` 으로 단일 실행 보장 + debounce
 - **자동 배치 예약 정책** (`requestBatch_(delayMs)` 의 debounce 시간):
@@ -257,8 +258,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 | `KINGSHOT_SALT`                     | (코드 기본값)                               | sign salt 교체                                    |
 | `KINGSHOT_BASE_URL`                 | `https://kingshot-giftcode.centurygame.com` | API 베이스                                        |
 | `KINGSHOT_VERIFY_PLAYER`            | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔              |
-| `KINGSHOT_MAX_USERS`                | `100`                                       | 유저 등록 정원 (0=무제한)                         |
-| `KINGSHOT_COUPON_TTL_DAYS`          | `7`                                         | 쿠폰 자동만료 일수 (0=끔)                         |
+| `KINGSHOT_MAX_USERS`                | `200`                                       | 유저 등록 정원 (0=무제한)                         |
+| `KINGSHOT_COUPON_TTL_DAYS`          | `30`                                        | 쿠폰 자동만료 일수 (0=끔)                         |
 | `KINGSHOT_VALIDATE_FID`             | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                                |
 | `SLACK_WEBHOOK_URL`                 | —                                           | Slack 웹훅 URL (UI에서 저장 가능)                 |
 | `SLACK_ENABLED`                     | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)        |

@@ -207,7 +207,15 @@ function classifyResponse_(res) {
   if (json.code === 0 || errCode === 20000 || msg.includes('SUCCESS')) {
     return { result: 'SUCCESS', message: json.msg || 'success' };
   }
-  if (msg.includes('RECEIVED') || msg.includes('USED') || errCode === 40008) {
+  // 40011 SAME TYPE EXCHANGE = 같은 타입 보상 이미 보유(보상은 전달됨) → 재시도 무의미한 terminal.
+  // ALREADY_USED 로 처리해야 dedup 보존 + warn/RATE_LIMITED 재시도에서 제외됨 (안 그러면 ERROR→매 배치 재시도+가짜 봇알람).
+  if (
+    msg.includes('RECEIVED') ||
+    msg.includes('USED') ||
+    msg.includes('SAME TYPE') ||
+    errCode === 40008 ||
+    errCode === 40011
+  ) {
     return { result: 'ALREADY_USED', message: json.msg || 'already received' };
   }
   if (msg.includes('CDK NOT FOUND') || msg.includes('NOT FOUND') || errCode === 40014) {

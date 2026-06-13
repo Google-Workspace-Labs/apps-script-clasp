@@ -1,4 +1,4 @@
-/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, refreshCurrentNickname_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt */
 
 /**
  * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
@@ -153,15 +153,20 @@ function apiRegisterUser(fid) {
       }
 
       // 등록 자체 알림 — 카테고리 user (default OFF)
+      let regDesc = nt('user_reg_d', {
+        nick: res.nickname,
+        fid: res.fid,
+        before: res.before,
+        after: res.after,
+      });
+      // 활성 쿠폰 0개라 배치 예약을 안 했으면 → "왜 배치 안 도나" 혼란 방지로 한 줄 인라인 안내
+      if (!hasCoupons) {
+        regDesc += '\n' + nt('user_reg_no_cpn');
+      }
       notify_(
         {
           title: nt('user_reg_t'),
-          description: nt('user_reg_d', {
-            nick: res.nickname,
-            fid: res.fid,
-            before: res.before,
-            after: res.after,
-          }),
+          description: regDesc,
           color: NOTIFY_COLORS.green,
           // 우측에 75x75 아바타 (있을 때만) — Kingshot 응답에 avatar_image 없는 유저는 자동 생략
           thumbnail: res.avatar ? { url: res.avatar } : undefined,
@@ -232,6 +237,10 @@ function apiLookupPlayer(fid) {
     }
 
     const existing = findUser_(clean);
+    if (existing) {
+      // 조회 = 공식 현재닉 확보 → 등록된 유저면 current_nickname 무료 갱신(다를 때만)
+      refreshCurrentNickname_(existing.row, (login.data || {}).nickname, existing.currentNickname);
+    }
     return {
       ok: true,
       profile: buildProfile_(clean, login.data),
@@ -348,6 +357,13 @@ function apiToggleCoupon(code, password) {
     const fmtEn = (b) => (b ? 'enabled' : 'disabled');
     const sheet = requireSheet_('coupons');
     sheet.getRange(c.row, COL.coupons.enabled).setValue(next);
+    // 재활성화(OFF→ON) 시 죽은 status(EXPIRED/EXPIRED_AGE/INVALID_CODE)면 VALID 로 리셋 —
+    // "다시 살린다"는 배포자 의도(무죄추정). 배치는 성공 시 status 를 안 올리므로 PENDING 이면 영영 박힘 → VALID.
+    // 실제로 죽었으면 다음 배치 redeem 이 EXPIRED 감지해 다시 자동 비활성(self-correcting).
+    const DEAD_STATUS = ['EXPIRED', 'EXPIRED_AGE', 'INVALID_CODE'];
+    if (next && DEAD_STATUS.indexOf(String(c.status).toUpperCase()) !== -1) {
+      sheet.getRange(c.row, COL.coupons.status).setValue('VALID');
+    }
     stampDate_(sheet, c.row, COL.coupons.updated, new Date());
     touchManage_();
     logSystem_(
@@ -392,7 +408,12 @@ function apiListManage() {
     const users = usersRaw
       .slice()
       .sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0))
-      .map((u) => ({ fid: u.fid, nickname: u.nickname || '', active: u.active }));
+      .map((u) => ({
+        fid: u.fid,
+        nickname: u.currentNickname || u.nickname || '', // 표시 = 현재 우선
+        nicknameOrig: u.nickname || '', // 최초(검색·"원래:" 표시용)
+        active: u.active,
+      }));
     // INVALID_CODE(존재하지 않는 오타) 는 캐시용으로만 시트에 남기고 UI 목록에서는 숨긴다.
     // EXPIRED/EXPIRED_AGE(한때 유효했던 코드) 는 이력 가치가 있어 그대로 노출.
     const isInvalidCode_ = (c) => String(c.status || '').toUpperCase() === 'INVALID_CODE';
@@ -737,7 +758,7 @@ function registerUserByFid_(fid) {
     return {
       ok: false,
       duplicate: true,
-      nickname: existing.nickname,
+      nickname: existing.currentNickname || existing.nickname,
       before,
       after: before,
       reason: '이미 등록됨',
