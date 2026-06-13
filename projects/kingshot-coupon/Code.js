@@ -368,8 +368,8 @@ function writeGuideSheet_(ss) {
     h: 44,
   });
   row(
-    'Finish the 2 steps below to be ready — 3️⃣ is optional.',
-    '아래 2단계면 준비 완료 — 3️⃣ 은 선택',
+    'Finish steps 1–3 below to be ready — 4️⃣ is optional.',
+    '아래 1~3단계면 준비 완료 — 4️⃣ 는 선택',
     {
       size: 10,
       color: '#555',
@@ -404,7 +404,7 @@ function writeGuideSheet_(ss) {
   );
   gap();
 
-  row('0️⃣  Choose your language', '0️⃣  언어 선택', {
+  row('1️⃣  Choose your language', '1️⃣  언어 선택', {
     size: 12,
     bold: true,
     bg: '#fffdf6',
@@ -422,7 +422,7 @@ function writeGuideSheet_(ss) {
   );
   gap();
 
-  row('1️⃣  Create 4 sheets', '1️⃣  시트 4개 생성', {
+  row('2️⃣  Create 4 sheets', '2️⃣  시트 4개 생성', {
     size: 12,
     bold: true,
     bg: '#fffdf6',
@@ -438,14 +438,14 @@ function writeGuideSheet_(ss) {
     '② 시트 4개(👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) 자동 생성 — 권한은 위에서 1회 승인됨(언어 건너뛰었으면 여기서 위 ⓐⓑⓒ 동일)',
     { size: 11, h: 48 },
   );
-  row('✅ If those 4 sheets already show, Step 1 is done', '✅ 4개 시트가 이미 보이면 1단계 완료', {
+  row('✅ If those 4 sheets already show, Step 2 is done', '✅ 4개 시트가 이미 보이면 2단계 완료', {
     size: 10,
     color: '#888',
     italic: true,
   });
   gap();
 
-  row('2️⃣  Deploy the web app + verify', '2️⃣  웹앱 배포 + 접속 확인', {
+  row('3️⃣  Deploy the web app + verify', '3️⃣  웹앱 배포 + 접속 확인', {
     size: 12,
     bold: true,
     bg: '#fffdf6',
@@ -486,7 +486,7 @@ function writeGuideSheet_(ss) {
   );
   gap();
 
-  row('3️⃣  (Optional) Auto coupon sync', '3️⃣  (선택) 자동 쿠폰 동기화', {
+  row('4️⃣  (Optional) Auto coupon sync', '4️⃣  (선택) 자동 쿠폰 동기화', {
     size: 12,
     bold: true,
     bg: '#fffdf6',
