@@ -119,8 +119,8 @@ container-bound 스크립트 (스프레드시트에 연결).
 
 | 그룹      | 항목                          | 동작                                                        |
 | --------- | ----------------------------- | ----------------------------------------------------------- |
-| 🚀 Setup  | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)             |
-|           | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)           |
+| 🚀 Setup  | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)           |
+|           | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)             |
 |           | 📖 Guide 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
 | ▶ 실행    | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)                 |
 |           | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)               |
