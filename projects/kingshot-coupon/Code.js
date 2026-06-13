@@ -212,7 +212,7 @@ function quickSetupWizard() {
          left <code>⚙️ Type ▸ Web app</code><br>
          → config: Execute as = <b>Me</b>, Who has access = <b>Anyone</b> →
          click <code>Deploy</code><br>
-         → <code>Authorize access</code> → same auth steps as Step 1 ⓐⓑⓒ in the <b>📖 Guide</b> sheet<br>
+         → <code>Authorize access</code> → same auth steps as the ⓐⓑⓒ permission note in the <b>📖 Guide</b> sheet<br>
          → on "Deployment updated", <b>[Copy]</b> the web app URL<br>
          → open the copied <code>/exec</code> URL in a browser to verify</p>
       <a class="btn" href="${editorUrl}" target="_blank">▶ Open Apps Script editor</a>
@@ -243,7 +243,7 @@ function quickSetupWizard() {
          좌측 <code>⚙️ 유형 ▸ 웹 앱</code> 선택<br>
          → 구성: 실행 사용자 = <b>나</b>, 액세스 권한 = <b>모든 사용자</b> →
          <code>배포</code> 클릭<br>
-         → <code>액세스 승인</code> → 권한 절차는 <b>📖 가이드</b> 시트의 1단계 ⓐⓑⓒ 와 동일<br>
+         → <code>액세스 승인</code> → 권한 절차는 <b>📖 가이드</b> 시트의 ⓐⓑⓒ 권한 안내와 동일<br>
          → "배포가 업데이트되었습니다" 화면의 웹 앱 URL <b>[복사]</b><br>
          → 복사한 <code>/exec</code> URL 을 브라우저로 접속 확인</p>
       <a class="btn" href="${editorUrl}" target="_blank">▶ Apps Script 에디터 열기</a>
@@ -378,37 +378,13 @@ function writeGuideSheet_(ss) {
   );
   gap();
 
-  row('0️⃣  Choose your language', '0️⃣  언어 선택', {
-    size: 12,
-    bold: true,
-    bg: '#fffdf6',
-    color: '#7a5c00',
-  });
   row(
-    'Top menu [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. The menu switches instantly.',
-    '상단 메뉴 [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. 메뉴가 즉시 바뀝니다.',
-    { size: 11, h: 34 },
-  );
-  gap();
-
-  row('1️⃣  Create 4 sheets + approve Google permissions', '1️⃣  시트 4개 생성 + Google 권한 승인', {
-    size: 12,
-    bold: true,
-    bg: '#fffdf6',
-    color: '#7a5c00',
-  });
-  row(
-    '① Click [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets]',
-    '① [👑 Kingshot Bot ▸ 🚀 설정 ▸ 시트 4개 생성] 클릭',
-    { size: 11 },
+    '💡 First menu click (incl. language) → a ONE-TIME Google permission prompt:',
+    '💡 처음 메뉴를 클릭하면(언어 설정이든 시트 생성이든) Google 권한 동의창이 한 번 떠요:',
+    { size: 11, bold: true, bg: '#fff8e1', color: '#7a5c00', h: 34 },
   );
   row(
-    '② Approve Google permissions — an "unverified app" warning is normal:',
-    '② Google 권한 승인 — "확인하지 않은 앱" 경고는 정상:',
-    { size: 11 },
-  );
-  row(
-    '   ⓐ Click [Advanced] (don\'t click "back to safety")',
+    "   ⓐ Click [Advanced] (don't click 'back to safety')",
     "   ⓐ [고급] 클릭 ('안전한 환경으로 돌아가기' 누르지 말 것)",
     { size: 10, color: '#555' },
   );
@@ -422,14 +398,45 @@ function writeGuideSheet_(ss) {
     color: '#555',
   });
   row(
-    '   ※ "Unsafe" is just Google\'s unverified notice — the code is safe.',
-    '   ※ "안전하지 않음"은 Google 미인증 안내일 뿐 — 코드는 안전',
+    '   ※ "Unsafe" is just Google\'s unverified notice — safe, and only once.',
+    '   ※ "안전하지 않음"은 Google 미인증 표기일 뿐 — 코드는 안전. 한 번만, 이후 안 뜸',
     { size: 10, color: '#888', italic: true },
   );
+  gap();
+
+  row('0️⃣  Choose your language', '0️⃣  언어 선택', {
+    size: 12,
+    bold: true,
+    bg: '#fffdf6',
+    color: '#7a5c00',
+  });
   row(
-    '③ 4 sheets (👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) are auto-created',
-    '③ 시트 4개(👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) 자동 생성',
+    'Top menu [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. The menu switches instantly.',
+    '상단 메뉴 [👑 Kingshot Bot ▸ 🌐 Language] → 한국어 / English. 메뉴가 즉시 바뀝니다.',
+    { size: 11, h: 34 },
+  );
+  row(
+    '(↑ usually your first click → the permission prompt above appears here)',
+    '(↑ 보통 이게 첫 클릭이라 → 위 권한 동의창이 여기서 떠요)',
+    { size: 10, color: '#888', italic: true },
+  );
+  gap();
+
+  row('1️⃣  Create 4 sheets', '1️⃣  시트 4개 생성', {
+    size: 12,
+    bold: true,
+    bg: '#fffdf6',
+    color: '#7a5c00',
+  });
+  row(
+    '① Click [👑 Kingshot Bot ▸ 🚀 Setup ▸ Setup Sheets]',
+    '① [👑 Kingshot Bot ▸ 🚀 설정 ▸ 시트 4개 생성] 클릭',
     { size: 11 },
+  );
+  row(
+    '② 4 sheets (👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) auto-created — permission already approved above',
+    '② 시트 4개(👤 users · 🎟️ coupons · 🧾 logs · 🩺 system_logs) 자동 생성 — 권한은 위에서 1회 승인됨(언어 건너뛰었으면 여기서 위 ⓐⓑⓒ 동일)',
+    { size: 11, h: 48 },
   );
   row('✅ If those 4 sheets already show, Step 1 is done', '✅ 4개 시트가 이미 보이면 1단계 완료', {
     size: 10,
@@ -460,8 +467,8 @@ function writeGuideSheet_(ss) {
     { size: 11 },
   );
   row(
-    '④ "Authorization required" → [Authorize] → allow all like Step 1 ⓐⓑⓒ',
-    '④ "액세스 권한 부여 요청" → [액세스 승인] → 1단계 ⓐⓑⓒ 처럼 모두 허용',
+    '④ "Authorization required" → [Authorize] → allow all like the ⓐⓑⓒ above',
+    '④ "액세스 권한 부여 요청" → [액세스 승인] → 위 권한 안내 ⓐⓑⓒ처럼 모두 허용',
     { size: 11, h: 34 },
   );
   row(
