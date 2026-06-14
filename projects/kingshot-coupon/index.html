@@ -776,6 +776,7 @@
         <div class="row">
           <input
             id="fid"
+            onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();lookupUser();}"
             type="text"
             inputmode="numeric"
             placeholder="플레이어 ID"
@@ -822,6 +823,7 @@
         <div class="divider"></div>
         <input
           id="code"
+          onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();submitCoupon();}"
           type="text"
           placeholder="쿠폰 코드 입력"
           data-i18n-ph="ph_code"
@@ -960,8 +962,8 @@
             <span class="shint" data-i18n="m_ttl_hint">0 = 끔</span>
           </div>
           <div class="row">
-            <input id="ttlInput" type="text" inputmode="numeric" />
-            <button class="btn-sec sbtn" data-i18n="btn_save" onclick="saveTtl()">저장</button>
+            <input id="ttlInput" type="text" inputmode="numeric" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveTtl();}" />
+            <button class="btn-sec sbtn" id="ttlSaveBtn" data-i18n="btn_save" onclick="saveTtl()">저장</button>
           </div>
 
           <div class="srow-head">
@@ -1066,12 +1068,13 @@
           <div class="row" style="margin-top: 6px">
             <input
               id="slUrl"
+              onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveSlack();}"
               type="text"
               placeholder="Webhook URL 붙여넣기"
               data-i18n-ph="ph_webhook"
               autocomplete="off"
             />
-            <button class="btn-sec sbtn" data-i18n="btn_save" onclick="saveSlack()">저장</button>
+            <button class="btn-sec sbtn" id="slSaveBtn" data-i18n="btn_save" onclick="saveSlack()">저장</button>
           </div>
 
           <div class="srow-head" style="margin-top: 14px">
@@ -1889,13 +1892,26 @@
       function saveTtl() {
         const pw = requirePw();
         if (!pw) return;
+        const btn = $('ttlSaveBtn');
+        const restore = function () {
+          btn.disabled = false;
+          btn.textContent = t('btn_save');
+        };
+        btn.disabled = true; // 즉시 비활성 = 눌림 인지(중복저장 방지)
         google.script.run
           .withSuccessHandler(function (res) {
             mgFlash(srvMsg_(res));
-            if (res && res.ok) $('ttlInput').value = res.ttlDays;
+            if (res && res.ok) {
+              $('ttlInput').value = res.ttlDays;
+              btn.textContent = t('btn_saved'); // ✓ 저장됨 — 행 옆 즉시 피드백
+              setTimeout(restore, 1500);
+            } else {
+              restore();
+            }
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));
+            restore();
           })
           .apiSetCouponTtl($('ttlInput').value.trim(), pw);
       }
@@ -2159,16 +2175,27 @@
       function saveSlack() {
         const pw = requirePw();
         if (!pw) return;
+        const btn = $('slSaveBtn');
+        const restore = function () {
+          btn.disabled = false;
+          btn.textContent = t('btn_save');
+        };
+        btn.disabled = true; // 즉시 비활성 = 눌림 인지
         google.script.run
           .withSuccessHandler(function (res) {
             mgFlash(srvMsg_(res));
             if (res && res.ok) {
               $('slUrl').value = '';
+              btn.textContent = t('btn_saved'); // ✓ 저장됨
+              setTimeout(restore, 1500);
               loadManage();
+            } else {
+              restore();
             }
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));
+            restore();
           })
           .apiSetSlackWebhook($('slUrl').value.trim(), pw);
       }
