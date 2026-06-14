@@ -195,6 +195,18 @@ function classifyResponse_(res) {
 
   const json = res.json;
   if (!json) {
+    // 200인데 JSON 이 아니면 보통 Cloudflare/HTML 차단 페이지(공유 GAS IP) → 하드에러가 아니라 일시적(재시도) 처리.
+    const body = String(res.text || '').toLowerCase();
+    const looksBlocked =
+      res.status === 200 &&
+      (body.indexOf('<html') !== -1 ||
+        body.indexOf('<!doctype') !== -1 ||
+        body.indexOf('cloudflare') !== -1 ||
+        body.indexOf('cf-ray') !== -1 ||
+        body.indexOf('challenge') !== -1);
+    if (looksBlocked) {
+      return { result: 'RATE_LIMITED', message: 'blocked (HTML/cf) — transient' };
+    }
     return {
       result: 'ERROR',
       message: `HTTP ${res.status} / 비정상 응답: ${truncate_(res.text, 120)}`,
@@ -213,6 +225,8 @@ function classifyResponse_(res) {
     msg.includes('RECEIVED') ||
     msg.includes('USED') ||
     msg.includes('SAME TYPE') ||
+    msg.includes('CLAIMED') ||
+    msg.includes('DUPLICATE') ||
     errCode === 40008 ||
     errCode === 40011
   ) {
@@ -224,7 +238,13 @@ function classifyResponse_(res) {
   if (msg.includes('TIME ERROR') || msg.includes('EXPIRED') || errCode === 40007) {
     return { result: 'EXPIRED', message: json.msg || 'expired' };
   }
-  if (msg.includes('TIMEOUT RETRY') || msg.includes('TOO FREQUENT') || errCode === 40004) {
+  if (
+    msg.includes('TIMEOUT RETRY') ||
+    msg.includes('TOO FREQUENT') ||
+    msg.includes('BUSY') ||
+    msg.includes('TRY AGAIN') ||
+    errCode === 40004
+  ) {
     return { result: 'RATE_LIMITED', message: json.msg || 'timeout retry' };
   }
   if (msg.includes('CAPTCHA')) {

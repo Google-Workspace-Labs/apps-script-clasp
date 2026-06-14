@@ -165,6 +165,7 @@
           srv_coupon_invalid_cached: (d) =>
             `❌ 존재하지 않는 코드: ${d.code} (이전 확인됨 · API 없이 차단)`,
           srv_coupon_dup: (d) => `ℹ️ 이미 등록된 쿠폰: ${d.code}`,
+          srv_coupon_bad_format: '❌ 올바르지 않은 코드 형식입니다.',
           srv_coupon_invalid_new: (d) =>
             `❌ 존재하지 않는 코드(CDK NOT FOUND): ${d.code} — 시트에 기록(향후 자동 차단)`,
           srv_coupon_expired_new: (d) =>
@@ -346,6 +347,7 @@
           srv_coupon_invalid_cached: (d) =>
             `❌ Nonexistent code: ${d.code} (previously checked · blocked without API)`,
           srv_coupon_dup: (d) => `ℹ️ Coupon already added: ${d.code}`,
+          srv_coupon_bad_format: '❌ Invalid code format.',
           srv_coupon_invalid_new: (d) =>
             `❌ Nonexistent code (CDK NOT FOUND): ${d.code} — recorded (auto-blocked later)`,
           srv_coupon_expired_new: (d) =>

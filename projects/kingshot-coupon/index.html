@@ -1476,11 +1476,36 @@
           .apiLookupPlayer(fid);
       }
 
+      // 변이 호출 공용 래퍼 — code:'busy'(락 미획득 = 서버서 액션 실행 안 됨)면 2초 뒤 1회만 자동 재시도.
+      // busy 는 fn 실행 전에 반환되므로(safeApiWithLock_ 검증) 재시도해도 중복 실행 없음.
+      // invoke(r): 구성된 runner 로 r.apiX(...) 직접 호출. onSuccess 는 최종 결과(busy 아님)에만 실행 →
+      // 그동안 호출부의 setBusy(true) 가 버튼 비활성 + "…중" 유지.
+      function callApi_(invoke, onSuccess, onFailure) {
+        let retried = false;
+        function go() {
+          const r = google.script.run
+            .withSuccessHandler(function (res) {
+              if (res && res.code === 'busy' && !retried) {
+                retried = true;
+                setTimeout(go, 2000);
+                return;
+              }
+              onSuccess(res);
+            })
+            .withFailureHandler(onFailure);
+          invoke(r);
+        }
+        go();
+      }
+
       function doRegister() {
         if (!currentFid) return;
         setBusy('registerBtn', 'userResult', true, t('registering'));
-        google.script.run
-          .withSuccessHandler(function (res) {
+        callApi_(
+          function (r) {
+            r.apiRegisterUser(currentFid);
+          },
+          function (res) {
             setBusy('registerBtn', 'userResult', false);
             render('userResult', res);
             if (res && res.ok) {
@@ -1492,15 +1517,13 @@
               $('fid').focus();
               loadManage();
               mgClearAll(); // 관리 패널 3카드의 이전 액션 메시지(삭제 등) 비움
-              // 성공 메시지(✅ 등록 완료: N → N+1명)는 fade 안 함 — 다음 조회/등록 시 setBusy+render 가 자연 교체.
-              // 사용자가 카운트 변화를 확실히 인지하도록 화면에 유지.
             }
-          })
-          .withFailureHandler(function (err) {
+          },
+          function (err) {
             setBusy('registerBtn', 'userResult', false);
             render('userResult', { ok: false, message: t('err_prefix') + errMsg(err) });
-          })
-          .apiRegisterUser(currentFid);
+          },
+        );
       }
 
       // 관리 탭에서 토글/삭제한 유저가 '등록 영역에 떠 있는 그 유저(currentFid)'면,
@@ -1528,8 +1551,11 @@
           return;
         }
         setBusy('codeBtn', 'codeResult', true, t('checking_code'));
-        google.script.run
-          .withSuccessHandler(function (res) {
+        callApi_(
+          function (r) {
+            r.apiRegisterCoupon(code);
+          },
+          function (res) {
             setBusy('codeBtn', 'codeResult', false);
             render('codeResult', res);
             // ok=true (살아있는 코드 등록) 또는 sheetUpdated=true (죽은 코드 캐시 기록) 시 list 새로고침
@@ -1542,12 +1568,12 @@
             if (res && res.ok) {
               fadeOutResult('codeResult', 15000);
             }
-          })
-          .withFailureHandler(function (err) {
+          },
+          function (err) {
             setBusy('codeBtn', 'codeResult', false);
             render('codeResult', { ok: false, message: t('err_prefix') + errMsg(err) });
-          })
-          .apiRegisterCoupon(code);
+          },
+        );
       }
 
       // ── 관리 (기본 열림) ──
@@ -1771,17 +1797,18 @@
           row.className = 'mrow';
           const name = document.createElement('span');
           name.className = 'mname mwrap';
-          name.innerHTML =
-            '<span class="mcode">' +
-            c.code +
-            '</span>' +
-            (c.created || c.status
-              ? '<span class="mmeta">' +
-                (c.created || '') +
-                (c.created && c.status ? ' · ' : '') +
-                (c.status || '') +
-                '</span>'
-              : '');
+          // 코드는 textContent 로 — 코드에 무엇이 들었든 글자 그대로 표시(HTML 실행 불가). 구조는 기존과 동일(span.mcode + span.mmeta).
+          const code = document.createElement('span');
+          code.className = 'mcode';
+          code.textContent = c.code;
+          name.appendChild(code);
+          if (c.created || c.status) {
+            const meta = document.createElement('span');
+            meta.className = 'mmeta';
+            meta.textContent =
+              (c.created || '') + (c.created && c.status ? ' · ' : '') + (c.status || '');
+            name.appendChild(meta);
+          }
           const sw = makeSwitch(c.enabled, function (cb) {
             toggleCouponRow(c.code, cb);
           });

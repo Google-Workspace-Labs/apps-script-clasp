@@ -799,6 +799,11 @@ function registerCouponNow_(codeRaw) {
   if (!code) {
     return { ok: false, code: 'coupon_need_code' };
   }
+  // 형식 가드 — 정상 코드는 영숫자(대시 등 허용)이므로 막지 않음. <> 또는 과도한 길이만 거부
+  // (쓰레기/스크립트성 입력 차단). 표시는 전부 textContent 라 XSS 자체는 이미 불가, 이건 입력단 방어.
+  if (code.length > 40 || /[<>]/.test(code)) {
+    return { ok: false, code: 'coupon_bad_format' };
+  }
 
   // 캐시 히트 — 이미 시트에 같은 코드가 있으면 API 호출 없이 즉시 처리
   const existing = findCoupon_(code);
