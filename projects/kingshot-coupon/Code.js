@@ -222,7 +222,7 @@ function quickSetupWizard() {
       <h3><span class="badge">2</span>Slack alerts (optional)</h3>
       <p>To receive batch results in Slack, open the <code>/exec</code> web app →
          <b>🛠 Admin</b> panel → password (today’s date on your device, 4 digits e.g. <code>0613</code>) → save the Webhook URL.
-         (The Help button can copy a GPT prompt for you.)</p>
+         (The Help section has a GPT prompt + a downloadable bot icon.)</p>
     </div>
 
     <p class="note">
@@ -253,7 +253,7 @@ function quickSetupWizard() {
       <h3><span class="badge">2</span>Slack 알림 (선택)</h3>
       <p>배치 결과를 Slack 으로 받고 싶다면 위 웹앱 <code>/exec</code> 의
          <b>🛠 관리</b> 패널 → 비밀번호(접속 기기의 오늘 날짜 4자리, 예 <code>0613</code>) → Webhook URL 저장.
-         (도움말 버튼에 GPT 프롬프트 복사 기능 있음.)</p>
+         (도움말에 GPT 프롬프트 복사 + Slack 봇 아이콘 다운로드 있음.)</p>
     </div>
 
     <p class="note">

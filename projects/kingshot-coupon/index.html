@@ -352,6 +352,18 @@
         color: var(--ink);
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
       }
+      /* 인라인 다운로드 버튼 (Slack 아이콘) — copybtn 과 달리 position:static */
+      .dlbtn {
+        display: inline-block;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.92);
+        color: var(--gold-d);
+        border: 1.5px solid var(--gold);
+        cursor: pointer;
+      }
       .result {
         margin-top: 12px;
         font-size: 14px;
@@ -1027,6 +1039,26 @@
 - 이 URL은 비밀이며 외부에 노출되면 안 된다는 주의사항도 알려줘.
 - 한국어로, 번호 매긴 단계로 정리해줘.</textarea
                 >
+              </div>
+              <div
+                style="
+                  margin-top: 8px;
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  flex-wrap: wrap;
+                "
+              >
+                <span class="note" data-i18n="slack_icon_hint"
+                  >💡 Slack [App icon] 용 (선택)</span
+                >
+                <button
+                  class="dlbtn"
+                  data-i18n="dl_slack_icon"
+                  onclick="downloadSlackIcon(this)"
+                >
+                  📥 다운로드
+                </button>
               </div>
             </div>
           </div>
@@ -2037,6 +2069,39 @@
 
       function copyPromptSl() {
         copyTextarea_('slPrompt', 'copyBtnSl');
+      }
+
+      // Slack 봇 아이콘 다운로드 — base64는 멤버 페이지에 안 싣고, 클릭 시 서버서 lazy 로드(원본 바이트 그대로).
+      function downloadSlackIcon(btn) {
+        if (btn) {
+          btn.disabled = true; // 받는 동안 비활성(중복클릭 방지+작동 인지). ⏳ 텍스트는 안 붙임 — 버튼 컨벤션=disabled
+        }
+        const restore = function () {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = t('dl_slack_icon');
+          }
+        };
+        google.script.run
+          .withSuccessHandler(function (b64) {
+            if (b64) {
+              const a = document.createElement('a');
+              a.href = 'data:image/jpeg;base64,' + b64;
+              a.download = 'favicon.ico'; // 원본 파일명/확장자 유지
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              if (btn) {
+                btn.disabled = false;
+                btn.textContent = t('dl_done'); // ✓ 받음
+                setTimeout(restore, 1500);
+              }
+            } else {
+              restore();
+            }
+          })
+          .withFailureHandler(restore)
+          .apiGetSlackIcon();
       }
 
       // 공용 클립보드 복사 헬퍼 — execCommand 우선, 실패 시 Clipboard API fallback
