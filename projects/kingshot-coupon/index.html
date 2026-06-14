@@ -788,7 +788,7 @@
         </div>
         <div class="note" data-i18n-html="u_note">
           * 등록한 유저는 약 3분 뒤 자동 배치로 기존 활성 쿠폰을 받습니다.<br />
-          * 결과는 Slack 으로 전달됩니다.
+          * 결과는 Slack 으로 전달됩니다(설정 시).
         </div>
 
         <div id="userProfile" class="profile">
@@ -829,7 +829,7 @@
         />
         <div class="note" data-i18n-html="c_note">
           * 존재하지 않거나 만료된 코드는 자동 거부됩니다.<br />
-          * 신규 유효 코드는 등록 후 배치가 실행되며, 결과는 Slack 으로 전달됩니다.
+          * 신규 유효 코드는 등록 후 배치가 실행되며, 결과는 Slack 으로 전달됩니다(설정 시).
         </div>
         <button id="codeBtn" class="btn-wide" data-i18n="btn_register" onclick="submitCoupon()">
           등록
@@ -920,7 +920,7 @@
                 <span data-i18n="man_t7">❓ 자주 묻는 질문</span><span class="macc-c">▼</span>
               </div>
               <div class="macc-b" data-i18n-html="man_b7" style="display: none">
-                • <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초) + 정기 스케줄<br />•
+                • <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초). 자동 동기화 ON이면 6시간마다 새 쿠폰 확인<br />•
                 <b>비밀번호를 모르겠어요</b> 시트 <b>📖 Guide</b> 탭에서 확인(배포자 전용)<br />•
                 <b>친구가 복사하면?</b> Slack·설정값은 복사 안 됨 → 각자 새로 설정
               </div>
