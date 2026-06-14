@@ -493,6 +493,11 @@ function writeGuideSheet_(ss) {
     color: '#7a5c00',
   });
   row(
+    'Coupons: normally you type codes into the 🎁 Register Coupon card yourself (from community/official). To auto-pull instead:',
+    '쿠폰은 평소 🎁 쿠폰 등록 카드에 직접 입력해요(커뮤니티/공식서 코드 받아서). 자동으로 받고 싶으면:',
+    { size: 11, h: 44 },
+  );
+  row(
     '⑧ To auto-add new community coupons, turn ON Auto coupon sync in [🛠 Admin]',
     '⑧ 커뮤니티 신규 쿠폰 자동 등록하려면 [🛠 관리]에서 자동 쿠폰 동기화 ON',
     { size: 11, h: 34 },
