@@ -3,13 +3,21 @@
 /**
  * Kingshot Coupon — 외부 쿠폰 소스 자동 동기화 (옵션 레이어)
  *
- * 외부 커뮤니티 사이트(kingshotdata.kr)가 발행 쿠폰을 JSON 으로 공개한다.
- * 그 목록을 주기적으로 받아 우리 시트에 없는 "아직 유효한" 신규 코드만 자동 등록한다.
+ * 외부 커뮤니티 소스가 발행 쿠폰을 JSON 으로 공개한다. 그 목록을 주기적으로 받아
+ * 우리 시트에 없는 "아직 유효한" 신규 코드만 자동 등록한다.
+ *
+ * 소스 = 주(primary) + 예비(fallback). 인프라가 서로 독립이라 실패가 상관없음(uncorrelated):
+ *   - 주  : ks-rewards.com/api/codes — Cloudflare 뒤 동적 API. 신선·검증상태(validation_status) 명시.
+ *           validation_status === 'validated' 인 코드만 채택.
+ *   - 예비: kingshotdata.kr/data/coupons.json — GitHub Pages 정적 파일. 스테일하지만 초안정.
+ *           until >= 오늘 인 코드만 채택.
+ *   - 폴백은 **주 소스 fetch/파싱 실패 시에만** 호출(주가 정상이면 코드 0개라도 예비 안 봄 →
+ *     스테일·오타 잡음 상시 혼입 방지). 둘 다 실패하면 그 회차만 조용히 스킵.
  *
  * ⚠️ 격리 원칙 (절대 위반 금지):
  *   - 이 파일은 기존 수동 등록/배치 경로와 완전히 독립. 통째로 삭제해도 기존 기능 무손상.
- *   - 모든 진입점은 try/catch 로 감싸 어떤 오류(네트워크/JSON/스키마 변경)도
- *     트리거 밖으로 던지지 않음. 사이트가 변하거나 죽어도 수동 등록은 100% 정상.
+ *   - 모든 진입점 + 각 소스 fetch 가 try/catch 로 감싸여 어떤 오류(네트워크/JSON/스키마/CF차단)도
+ *     트리거 밖으로 던지지 않음. **두 소스가 다 죽어도 본체 동작은 "꺼놨을 때"와 동일**(수동 등록 100% 정상).
  *   - 신규 등록은 반드시 apiRegisterCoupon() 만 거침 → 단건 검증·dedup·dead코드 캐시·
  *     debounce 배치를 전부 기존 로직에 위임. 즉 "사람이 손으로 코드 친 것"과 동일한 효과.
  *   - 기본 OFF. AUTO_SYNC_ENABLED='true' 일 때만 시간 트리거가 동작.
@@ -17,13 +25,15 @@
  *     명시적으로 켜기 전까지 완전 비활성.
  *
  * Script Properties:
- *   - AUTO_SYNC_ENABLED  : 'true' 면 ON (그 외/미설정 = OFF)
- *   - COUPON_SOURCE_URL  : 소스 JSON URL (미설정 시 아래 기본 상수)
- *   - LAST_SYNC_AT       : 마지막 동기화 시각(KST)
- *   - LAST_SYNC_RESULT   : 마지막 동기화 결과 요약(표시용)
+ *   - AUTO_SYNC_ENABLED       : 'true' 면 ON (그 외/미설정 = OFF)
+ *   - COUPON_SOURCE_URL       : 주 소스 URL (미설정 시 아래 기본 상수 = ks-rewards)
+ *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 아래 기본 상수 = kingshotdata)
+ *   - LAST_SYNC_AT            : 마지막 동기화 시각(KST)
+ *   - LAST_SYNC_RESULT        : 마지막 동기화 결과 요약(표시용)
  */
 
-const COUPON_SOURCE_URL_DEFAULT = 'https://kingshotdata.kr/data/coupons.json';
+const COUPON_SOURCE_URL_DEFAULT = 'https://ks-rewards.com/api/codes'; // 주
+const COUPON_SOURCE_URL_FALLBACK_DEFAULT = 'https://kingshotdata.kr/data/coupons.json'; // 예비
 const SYNC_TRIGGER_HANDLER = 'syncCouponsScheduled';
 const SYNC_INTERVAL_HOURS = 6; // 하루 4회
 
@@ -40,46 +50,76 @@ function syncCouponsScheduled() {
 }
 
 // ============================================================
-// 동기화 본체 — 전체가 방어적(throw 없음)
+// 소스 fetch — 각 함수가 독립 try/catch, 절대 throw 안 함
+// 반환: { ok:boolean, codes:string[], error:string }
+//   ok=true  → 성공적으로 받아 파싱함(코드 0개여도 ok). 폴백 안 함.
+//   ok=false → fetch/파싱/스키마 실패 → 호출부가 다음 소스로 폴백.
 // ============================================================
 
-/**
- * 소스를 받아 신규 유효 쿠폰만 등록한다.
- * @param {boolean} isManual 수동 실행 여부(현재는 반환 메시지 외 동작 차이 없음)
- * @returns {{ok:boolean, registered?:string[], rejected?:string[], candidates?:number, message:string}}
- */
-function runCouponSync_(isManual) {
-  const startedAt = new Date();
+/** 공통 GET — 캐시 회피 v 파라미터, 예외 mute. */
+function syncFetchJson_(url, startedAt) {
+  const resp = UrlFetchApp.fetch(`${url}?v=${startedAt.getTime()}`, {
+    method: 'get',
+    muteHttpExceptions: true,
+    followRedirects: true,
+  });
+  return { status: resp.getResponseCode(), text: resp.getContentText() };
+}
+
+/** 주 소스: ks-rewards — {success, codes:[{code, validation_status}]}. validated 만 채택. */
+function fetchKsRewards_(url, startedAt) {
   try {
-    const props = PropertiesService.getScriptProperties();
-    const url = props.getProperty('COUPON_SOURCE_URL') || COUPON_SOURCE_URL_DEFAULT;
-
-    // 1) fetch — 캐시 회피용 v 파라미터, 예외는 mute 후 코드로 처리
-    const resp = UrlFetchApp.fetch(`${url}?v=${startedAt.getTime()}`, {
-      method: 'get',
-      muteHttpExceptions: true,
-      followRedirects: true,
-    });
-    const status = resp.getResponseCode();
-    if (status !== 200) {
-      return syncFail_(`소스 응답 HTTP ${status}`, isManual);
+    const r = syncFetchJson_(url, startedAt);
+    if (r.status !== 200) {
+      return { ok: false, codes: [], error: `ks-rewards HTTP ${r.status}` };
     }
-
-    // 2) 방어적 파싱 — 형식이 깨졌으면 조용히 실패 처리
     let data;
     try {
-      data = JSON.parse(resp.getContentText());
+      data = JSON.parse(r.text);
     } catch (e) {
-      return syncFail_('소스 JSON 파싱 실패 (형식 변경?)', isManual);
+      // 200 인데 JSON 아님 = CF 차단 HTML 등 → 실패로 보고 폴백
+      return { ok: false, codes: [], error: 'ks-rewards JSON 파싱 실패(차단?)' };
+    }
+    if (!data || !Array.isArray(data.codes)) {
+      return { ok: false, codes: [], error: 'ks-rewards codes 배열 없음(스키마 변경?)' };
+    }
+    const codes = [];
+    for (const raw of data.codes) {
+      if (!raw || typeof raw !== 'object') {
+        continue;
+      }
+      const code = String(raw.code ?? '').trim();
+      const vs = String(raw.validation_status ?? '')
+        .trim()
+        .toLowerCase();
+      if (!code || vs !== 'validated') {
+        continue; // expired/invalid/pending 은 무시 — 오타·만료 잡음 원천 차단
+      }
+      codes.push(code);
+    }
+    return { ok: true, codes, error: '' };
+  } catch (e) {
+    return { ok: false, codes: [], error: e && e.message ? e.message : String(e) };
+  }
+}
+
+/** 예비 소스: kingshotdata — {coupons:[{code, until}]}. until>=오늘 만 채택. */
+function fetchKingshotData_(url, startedAt, today) {
+  try {
+    const r = syncFetchJson_(url, startedAt);
+    if (r.status !== 200) {
+      return { ok: false, codes: [], error: `kingshotdata HTTP ${r.status}` };
+    }
+    let data;
+    try {
+      data = JSON.parse(r.text);
+    } catch (e) {
+      return { ok: false, codes: [], error: 'kingshotdata JSON 파싱 실패' };
     }
     if (!data || !Array.isArray(data.coupons)) {
-      return syncFail_('소스 응답에 coupons 배열 없음 (스키마 변경?)', isManual);
+      return { ok: false, codes: [], error: 'kingshotdata coupons 배열 없음(스키마 변경?)' };
     }
-
-    // 3) 후보 선별 — until>=오늘 & 코드 정상 & 시트(활성/죽은코드 캐시)에 없음
-    const today = Utilities.formatDate(startedAt, 'Asia/Seoul', 'yyyy-MM-dd');
-    const seen = {};
-    const candidates = [];
+    const codes = [];
     for (const raw of data.coupons) {
       if (!raw || typeof raw !== 'object') {
         continue;
@@ -97,6 +137,66 @@ function runCouponSync_(isManual) {
       if (until < today) {
         continue;
       }
+      codes.push(code);
+    }
+    return { ok: true, codes, error: '' };
+  } catch (e) {
+    return { ok: false, codes: [], error: e && e.message ? e.message : String(e) };
+  }
+}
+
+/**
+ * 주 소스 시도 → 실패 시에만 예비 폴백.
+ * @returns {{codes:string[], source:(string|null), error:string}} source=null 이면 둘 다 실패.
+ */
+function collectSourceCodes_(startedAt, today) {
+  const props = PropertiesService.getScriptProperties();
+
+  const primaryUrl = props.getProperty('COUPON_SOURCE_URL') || COUPON_SOURCE_URL_DEFAULT;
+  const primary = fetchKsRewards_(primaryUrl, startedAt);
+  if (primary.ok) {
+    return { codes: primary.codes, source: 'ks-rewards', error: '' };
+  }
+
+  // 주 실패 → 예비
+  const fallbackUrl =
+    props.getProperty('COUPON_SOURCE_URL_FALLBACK') || COUPON_SOURCE_URL_FALLBACK_DEFAULT;
+  const fallback = fetchKingshotData_(fallbackUrl, startedAt, today);
+  if (fallback.ok) {
+    return { codes: fallback.codes, source: 'kingshotdata(fallback)', error: primary.error };
+  }
+
+  return {
+    codes: [],
+    source: null,
+    error: `주(${primary.error}) · 예비(${fallback.error})`,
+  };
+}
+
+// ============================================================
+// 동기화 본체 — 전체가 방어적(throw 없음)
+// ============================================================
+
+/**
+ * 소스를 받아 신규 유효 쿠폰만 등록한다.
+ * @param {boolean} isManual 수동 실행 여부(현재는 반환 메시지 외 동작 차이 없음)
+ * @returns {{ok:boolean, registered?:string[], rejected?:string[], candidates?:number, source?:string, message:string}}
+ */
+function runCouponSync_(isManual) {
+  const startedAt = new Date();
+  try {
+    const today = Utilities.formatDate(startedAt, 'Asia/Seoul', 'yyyy-MM-dd');
+
+    // 1) 소스 수집(주→예비 폴백). 둘 다 죽으면 조용히 실패 처리.
+    const src = collectSourceCodes_(startedAt, today);
+    if (src.source === null) {
+      return syncFail_(`모든 소스 실패 — ${src.error}`, isManual);
+    }
+
+    // 2) 후보 선별 — 소스 내 dedup + 시트(활성/죽은코드 캐시)에 없는 것만
+    const seen = {};
+    const candidates = [];
+    for (const code of src.codes) {
       const key = code.toUpperCase();
       if (seen[key]) {
         continue; // 소스 내 중복
@@ -105,30 +205,30 @@ function runCouponSync_(isManual) {
       if (findCoupon_(code)) {
         continue; // 이미 시트에 존재(활성 또는 죽은코드 캐시) → 재등록 안 함
       }
-      candidates.push({ code, until });
+      candidates.push(code);
     }
 
-    // 4) 등록 — 기존 진입점에 위임(검증/dedup/dead캐시/배치 debounce 전부 위임)
+    // 3) 등록 — 기존 진입점에 위임(검증/dedup/dead캐시/배치 debounce 전부 위임)
     const registered = [];
     const rejected = [];
-    for (const c of candidates) {
+    for (const code of candidates) {
       let res;
       try {
-        res = apiRegisterCoupon(c.code);
+        res = apiRegisterCoupon(code);
       } catch (e) {
-        rejected.push(`${c.code}(예외)`);
+        rejected.push(`${code}(예외)`);
         continue;
       }
       if (res && res.ok) {
-        registered.push(c.code);
+        registered.push(code);
       } else {
-        rejected.push(c.code);
+        rejected.push(code);
       }
     }
 
-    // 5) 결과 기록 + 알림(신규가 있을 때만 Slack — 노이즈 방지)
+    // 4) 결과 기록 + 알림(신규가 있을 때만 Slack — 노이즈 방지)
     const summary =
-      `new ${registered.length}` +
+      `[${src.source}] new ${registered.length}` +
       (registered.length ? ` (${registered.join(', ')})` : '') +
       (rejected.length ? ` · ${rejected.length} rejected/pending` : '') +
       ` · ${candidates.length} candidates`;
@@ -162,6 +262,7 @@ function runCouponSync_(isManual) {
       registered,
       rejected,
       candidates: candidates.length,
+      source: src.source,
       message: `✅ Sync done — ${summary}`,
     };
   } catch (err) {

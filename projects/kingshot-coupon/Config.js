@@ -15,7 +15,8 @@
  *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 200, 0 이면 무제한)
  *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔)
  *   - AUTO_SYNC_ENABLED      : 외부 쿠폰 소스 자동 동기화 ON/OFF ('true' 면 ON, 기본 OFF) — Sync.js
- *   - COUPON_SOURCE_URL      : 자동 동기화 소스 JSON URL (미설정 시 Sync.js 기본 상수)
+ *   - COUPON_SOURCE_URL      : 주 동기화 소스 URL (미설정 시 Sync.js 기본 = ks-rewards)
+ *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 Sync.js 기본 = kingshotdata; 주 실패 시)
  */
 
 // 운영사가 salt 를 교체하면 여기 또는 Script Property(KINGSHOT_SALT)만 수정하면 됩니다.
