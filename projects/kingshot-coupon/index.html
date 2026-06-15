@@ -986,7 +986,7 @@
             <button
               class="btn-sec sbtn"
               style="width: 100%"
-              data-i18n="btn_run_now"
+              id="batchNowBtn"              data-i18n="btn_run_now"
               onclick="runBatchNow()"
             >
               지금 실행
@@ -1008,7 +1008,7 @@
             <button
               class="btn-sec sbtn"
               style="width: 100%"
-              data-i18n="btn_sync_now"
+              id="syncNowBtn"              data-i18n="btn_sync_now"
               onclick="runSyncNow()"
             >
               지금 동기화 (1회)
@@ -1946,16 +1946,30 @@
       function runBatchNow() {
         const pw = requirePw();
         if (!pw) return;
+        const btn = $('batchNowBtn');
+        const label = t('btn_run_now');
+        // 누르는 즉시 비활성 + 텍스트 '예약 중…' → 눌림 인지 (예약은 즉시 반환 → ✓ 후 복원)
+        btn.disabled = true;
+        btn.textContent = t('btn_scheduling');
+        const restore = function () {
+          btn.disabled = false;
+          btn.textContent = label;
+        };
         google.script.run
           .withSuccessHandler(function (res) {
             mgFlash(srvMsg_(res));
             // 예약 후 ~35초 뒤에 lastBatch 가 갱신될 가능성 — 자동 새로고침
             if (res && res.ok) {
+              btn.textContent = t('btn_scheduled'); // ✓ 예약됨
               setTimeout(loadManage, 35000);
+              setTimeout(restore, 1500);
+            } else {
+              restore();
             }
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));
+            restore();
           })
           .apiRunBatchNow(pw);
       }
@@ -2031,6 +2045,15 @@
       function runSyncNow() {
         const pw = requirePw();
         if (!pw) return;
+        const btn = $('syncNowBtn');
+        const label = t('btn_sync_now');
+        // 누르는 즉시 비활성 + 텍스트 '동기화 중…' → 눌림+실행을 확실히 인지 (동기 실행이라 끝까지 유지)
+        btn.disabled = true;
+        btn.textContent = t('btn_syncing');
+        const restore = function () {
+          btn.disabled = false;
+          btn.textContent = label;
+        };
         mgFlash(t('syncing'));
         google.script.run
           .withSuccessHandler(function (res) {
@@ -2039,10 +2062,13 @@
             } else {
               mgFlash(srvMsg_(res));
             }
+            btn.textContent = t('btn_synced'); // ✓ 완료 잠깐 표시 후 복원
+            setTimeout(restore, 1500);
             loadManage();
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));
+            restore();
           })
           .apiRunSyncNow(pw);
       }
