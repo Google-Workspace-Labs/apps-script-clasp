@@ -7,7 +7,7 @@
  *   users        : fid(1) | nickname(2) | current_nickname(3) | active(4) | created(5) | updated(6)
  *                  nickname=최초(불변), current_nickname=현재(조회/배치서 갱신). 표시는 current||nickname
  *   coupons      : code(1) | enabled(2)  | status(3) | created(4) | updated(5)
- *                  status: VALID/PENDING (등록 시) | EXPIRED/INVALID_CODE/EXPIRED_AGE (배치 자동)
+ *                  status: VALID (등록 시) | EXPIRED/INVALID_CODE/EXPIRED_AGE (배치 자동)
  *   logs         : time(1) | fid(2) | code(3) | result(4) | message(5)   (쿠폰 redeem 결과 — dedup 원천)
  *   system_logs  : time(1) | level(2) | source(3) | message(4) | target(5)  (진단, 1000행 회전)
  *
@@ -739,6 +739,12 @@ function runCouponBatch_() {
       } else if (result.result === 'ALREADY_USED') {
         stats.already++;
         console.log(`[ALREADY] fid=${user.fid} code=${coupon.code}`);
+      } else if (result.result === 'CONDITION_NOT_MET') {
+        // 유저 조건 미충족(화로레벨/VIP/충전) — 이 fid+코드엔 영구적. already 와 동일 취급:
+        // dedup 보존(getProcessedSet_ 포함)으로 재시도 안 함 + warn 안 올려 가짜 알람 차단.
+        // 코드-단위 비활성화는 안 함(타 유저는 받을 수 있음).
+        stats.already++;
+        console.log(`[CONDITION] fid=${user.fid} code=${coupon.code}: ${result.message}`);
       } else if (result.result === 'EXPIRED' || result.result === 'INVALID_CODE') {
         // 코드 자체 문제(만료/없음) → 이번 실행 이후 요청 생략 + 영구 비활성화 + 죽은 코드 로그 purge
         deadCoupons.add(coupon.code);
@@ -1222,7 +1228,7 @@ function diagnoseDedup() {
   // 4) typeLoose — fid Number → String 양방향
   const typeLooseSet = new Set();
 
-  const SUCCESS_LIKE_STRICT = ['SUCCESS', 'ALREADY_USED'];
+  const SUCCESS_LIKE_STRICT = ['SUCCESS', 'ALREADY_USED', 'CONDITION_NOT_MET'];
   const norm = (s) =>
     String(s === null || s === undefined ? '' : s)
       .replace(/[\s​‌‍﻿]/g, '')
@@ -1239,7 +1245,11 @@ function diagnoseDedup() {
     if (SUCCESS_LIKE_STRICT.indexOf(resultStr) >= 0) {
       strictSet.add(`${String(rawFid).trim()}|${String(rawCode).trim()}`);
     }
-    if (resultUpper === 'SUCCESS' || resultUpper === 'ALREADY_USED') {
+    if (
+      resultUpper === 'SUCCESS' ||
+      resultUpper === 'ALREADY_USED' ||
+      resultUpper === 'CONDITION_NOT_MET'
+    ) {
       caseLooseSet.add(`${String(rawFid).trim()}|${String(rawCode).trim()}`);
       trimLooseSet.add(`${norm(rawFid)}|${norm(rawCode)}`);
       // type-coerce
@@ -1537,7 +1547,7 @@ function getProcessedSet_() {
   const resultIdx = COL.logs.result - 1;
   for (let i = 1; i < values.length; i++) {
     const result = values[i][resultIdx];
-    if (result === 'SUCCESS' || result === 'ALREADY_USED') {
+    if (result === 'SUCCESS' || result === 'ALREADY_USED' || result === 'CONDITION_NOT_MET') {
       set.add(`${String(values[i][fidIdx]).trim()}|${String(values[i][codeIdx]).trim()}`);
     }
   }
@@ -1576,7 +1586,7 @@ function rotateNoiseLogs_(sheet) {
     return;
   }
   const resultIdx = COL.logs.result - 1;
-  const PRESERVE = new Set(['SUCCESS', 'ALREADY_USED']);
+  const PRESERVE = new Set(['SUCCESS', 'ALREADY_USED', 'CONDITION_NOT_MET']);
 
   // 가장 오래된 최대 100행 노이즈 인덱스 수집
   const toRemove = new Set();
@@ -1795,7 +1805,7 @@ function findCoupon_(code) {
 /**
  * coupons 시트에 추가: [code, enabled, status, created, updated]
  * @param {string} code
- * @param {string} status  VALID/PENDING(살아있는 코드) | EXPIRED/INVALID_CODE(죽은 코드, 캐시용)
+ * @param {string} status  VALID(살아있는 코드) | EXPIRED/INVALID_CODE(죽은 코드, 캐시용)
  * @param {boolean} [enabled=true]  죽은 코드는 false 로 호출 → 배치에서 무시되되 findCoupon_ 캐시 히트로 재시도 차단
  */
 function addCouponToSheet_(code, status, enabled) {

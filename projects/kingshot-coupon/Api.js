@@ -227,6 +227,7 @@ function classifyResponse_(res) {
     msg.includes('SAME TYPE') ||
     msg.includes('CLAIMED') ||
     msg.includes('DUPLICATE') ||
+    errCode === 40005 ||
     errCode === 40008 ||
     errCode === 40011
   ) {
@@ -254,6 +255,20 @@ function classifyResponse_(res) {
   if (msg.includes('NOT LOGIN') || msg.includes('PLEASE LOGIN')) {
     // gift_code 호출 전 /api/player 로그인이 필요함 → 호출부에서 로그인 후 재시도
     return { result: 'NOT_LOGIN', message: json.msg || 'not login' };
+  }
+  // 유저 조건 미충족: 화로레벨 부족(40006 STOVE_LV)·VIP/충전 부족(40017/40018 RECHARGE_MONEY).
+  // 이 fid+코드 조합엔 (사실상) 영구적 → 재시도·알람 무의미. 터미널(ALREADY_USED 류, dedup 보존)로 분류해
+  // ERROR 오분류로 인한 가짜 봇알람 + 매 배치 재시도 폭주를 막는다. 단 코드 자체는 유효(타 유저는
+  // 받을 수 있음)이므로 EXPIRED/INVALID_CODE 처럼 코드-단위 비활성화는 하지 않는다. (참고: WOS err_code 분류)
+  if (
+    msg.includes('STOVE_LV') ||
+    msg.includes('RECHARGE') ||
+    msg.includes('VIP') ||
+    errCode === 40006 ||
+    errCode === 40017 ||
+    errCode === 40018
+  ) {
+    return { result: 'CONDITION_NOT_MET', message: json.msg || 'condition not met' };
   }
   if (msg.includes('INVALID') || msg.includes('NOT EXIST')) {
     return { result: 'INVALID_FID', message: json.msg || 'invalid player' };

@@ -358,7 +358,7 @@ function apiToggleCoupon(code, password) {
     const sheet = requireSheet_('coupons');
     sheet.getRange(c.row, COL.coupons.enabled).setValue(next);
     // 재활성화(OFF→ON) 시 죽은 status(EXPIRED/EXPIRED_AGE/INVALID_CODE)면 VALID 로 리셋 —
-    // "다시 살린다"는 배포자 의도(무죄추정). 배치는 성공 시 status 를 안 올리므로 PENDING 이면 영영 박힘 → VALID.
+    // "다시 살린다"는 배포자 의도(무죄추정). 배치는 성공해도 status 를 안 올리므로 여기서 직접 VALID 로 리셋.
     // 실제로 죽었으면 다음 배치 redeem 이 EXPIRED 감지해 다시 자동 비활성(self-correcting).
     const DEAD_STATUS = ['EXPIRED', 'EXPIRED_AGE', 'INVALID_CODE'];
     if (next && DEAD_STATUS.indexOf(String(c.status).toUpperCase()) !== -1) {
@@ -788,7 +788,7 @@ function registerUserByFid_(fid) {
 
 /**
  * 쿠폰 등록: 공백제거 → 시트 캐시 조회 → 단건 검증(login+redeem) → 분기:
- *   - 살아있는 코드(VALID/PENDING) → 시트 추가(enabled=TRUE) + 배치 예약
+ *   - 살아있는 코드(VALID) → 시트 추가(enabled=TRUE) + 배치 예약
  *   - 죽은 코드(EXPIRED/INVALID_CODE) → 시트 추가(enabled=FALSE) 로 캐시 → 다음 시도 시 API 없이 차단
  *   - 캐시 히트(이미 등록 또는 이전에 죽은 것으로 확인) → API 없이 사유별 메시지
  * @returns {{ok:boolean, message:string, sheetUpdated?:boolean}}
@@ -815,12 +815,12 @@ function registerCouponNow_(codeRaw) {
     if (s === 'INVALID_CODE') {
       return { ok: false, code: 'coupon_invalid_cached', data: { code } };
     }
-    // VALID/PENDING 등 살아있는 상태
+    // 살아있는 상태(VALID; 레거시 PENDING 행도 여기로 — alive 취급)
     return { ok: false, code: 'coupon_dup', data: { code } };
   }
 
   // 단건 검증 (긴 대기 없는 단일 시도)
-  let status = 'PENDING';
+  let status = 'VALID'; // 살아있음 가정(검증 못 해도) — 죽으면 배치가 EXPIRED/INVALID 로 자동 비활성. 검증 상세는 nc/nr
   let note = '검증 안 함(유저 없음)'; // Slack 알림용(배포자 언어, Phase 2)
   let nc = 'no_user'; // 클라 표시용 noteCode: no_user | ok | pending
   let nr = ''; // pending 사유

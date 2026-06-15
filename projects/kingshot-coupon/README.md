@@ -20,23 +20,27 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 
 ## 시트 구조
 
-| 시트          | 컬럼                                        | 비고                         |
-| ------------- | ------------------------------------------- | ---------------------------- |
+| 시트          | 컬럼                                                           | 비고                                                                                                    |
+| ------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `users`       | fid · nickname · current_nickname · active · created · updated | `active=TRUE` 만 배치 대상. nickname=최초(불변)·current_nickname=현재(조회/배치 갱신), 표시는 현재 우선 |
-| `coupons`     | code · enabled · status · created · updated | `enabled=TRUE` 만 대상       |
-| `logs`        | time · fid · code · result · message        | dedup 원천 (자동 기록)       |
-| `system_logs` | time · level · source · message · target    | 진단 로그 (1000행 자동 회전) |
+| `coupons`     | code · enabled · status · created · updated                    | `enabled=TRUE` 만 대상                                                                                  |
+| `logs`        | time · fid · code · result · message                           | dedup 원천 (자동 기록)                                                                                  |
+| `system_logs` | time · level · source · message · target                       | 진단 로그 (1000행 자동 회전)                                                                            |
 
 > 실제 시트 탭 이름엔 이모지 prefix 가 붙는다: `👤 users` · `🎟️ coupons` · `🧾 logs` ·
 > `🩺 system_logs` (위 표/본문은 가독성 위해 식별자만 표기). 온보딩 가이드 탭은 `📖 Guide`.
 
-`result` 값: `SUCCESS`, `ALREADY_USED`, `INVALID_CODE`, `EXPIRED`, `EXPIRED_AGE`,
-`RATE_LIMITED`, `CAPTCHA_REQUIRED`, `INVALID_FID`, `ERROR`. `SUCCESS`/`ALREADY_USED`
-조합은 다음 실행에서 자동 skip (중복 요청 방지).
+`result` 값: `SUCCESS`, `ALREADY_USED`, `CONDITION_NOT_MET`, `INVALID_CODE`, `EXPIRED`,
+`EXPIRED_AGE`, `RATE_LIMITED`, `CAPTCHA_REQUIRED`, `INVALID_FID`, `ERROR`.
+`SUCCESS`/`ALREADY_USED`/`CONDITION_NOT_MET` 조합은 다음 실행에서 자동 skip (중복 요청 방지).
+
+> `CONDITION_NOT_MET` = 유저 조건 미충족 (`40006` 화로레벨·`40017/40018` VIP/충전).
+> 해당 fid+코드엔 영구적이라 **터미널(dedup 보존·재시도X·알람X)** 로 처리 — ERROR 오분류로 인한
+> 가짜 봇알람/재시도 폭주 방지. 단 코드 자체는 유효하므로 **코드-단위 비활성화는 안 함**(타 유저는 받음).
 
 `status` 값(coupons):
 
-- `VALID`/`PENDING` — 살아있는 코드 (enabled=TRUE, 배치 대상)
+- `VALID` — 살아있는 코드 (enabled=TRUE, 배치 대상). _(레거시 PENDING 행도 alive 취급 — 자동 갱신 안 됨)_
 - `EXPIRED`/`INVALID_CODE`/`EXPIRED_AGE` — 죽은 코드 (enabled=FALSE, 배치 skip)
   - 등록 시 단건 검증으로 즉시 감지 + 시트 기록 (dead code 캐시 → 재시도 차단)
   - 또는 배치 중 발견 시 자동 비활성화 + `logs` 행 purge
@@ -124,7 +128,7 @@ container-bound 스크립트 (스프레드시트에 연결).
 | --------- | ----------------------------- | ----------------------------------------------------------- |
 | 🚀 Setup  | Setup Sheets                  | 시트 4종 생성 (첫 사용 시 필수, 이미 있으면 스킵)           |
 |           | Quick Setup                   | 웹앱 배포 / Slack 안내 모달 (2단계, 비개발자용)             |
-|           | 📖 Guide 시트 생성         | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
+|           | 📖 Guide 시트 생성            | 배포자가 1회 실행 — 카피 받는 멤버용 onboarding 시트 생성   |
 | ▶ 실행    | Run Coupon Batch              | 배치 즉시 실행 (active 유저 × enabled 쿠폰)                 |
 |           | Test Single Coupon            | fid+코드 1건 즉석 테스트 (salt/플로우 검증용)               |
 | 🛠 관리   | Deactivate User / Delete User | fid 입력 → 비활성/삭제 (시트편집자만, 비밀번호 X)           |
@@ -315,15 +319,15 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 
 ### 운영 archetype 3종
 
-| 축            | 우리 (copy-distributed)  | ks-rewards (central SaaS) | Discord 봇 (federated)     |
-| ------------- | ------------------------ | ------------------------- | -------------------------- |
+| 축            | 우리 (copy-distributed)       | ks-rewards (central SaaS) | Discord 봇 (federated)        |
+| ------------- | ----------------------------- | ------------------------- | ----------------------------- |
 | 셋업          | **시트 복사 = 끝** (비개발자) | URL 접속                  | Python·호스팅·봇토큰 (개발자) |
-| 비용          | **0** (구글 호스팅)      | 운영자 부담               | 각 운영자 부담             |
-| UI            | 웹앱                     | 웹앱                      | Discord                    |
-| 저장소        | Google Sheet             | SQLite                    | SQLite                     |
-| 코드 발견     | 수동 + 선택적 6h sync    | 자동 15분                 | 커뮤니티 공유 풀 5~10분    |
-| 다중대상      | 전 유저                  | Player ID 리스트          | 연합(alliance) bulk        |
-| 업데이트 전파 | **없음**(복사 동결)      | Docker pull               | GitHub 자동                |
+| 비용          | **0** (구글 호스팅)           | 운영자 부담               | 각 운영자 부담                |
+| UI            | 웹앱                          | 웹앱                      | Discord                       |
+| 저장소        | Google Sheet                  | SQLite                    | SQLite                        |
+| 코드 발견     | 수동 + 선택적 6h sync         | 자동 15분                 | 커뮤니티 공유 풀 5~10분       |
+| 다중대상      | 전 유저                       | Player ID 리스트          | 연합(alliance) bulk           |
+| 업데이트 전파 | **없음**(복사 동결)           | Docker pull               | GitHub 자동                   |
 
 우리 해자 = **0-셋업·0-비용·비개발자 친화**. 참고들은 커뮤니티/연합 스케일 + 기술 운영자
 대상이라 무거운 기계장치(프록시·캡차·자동업데이트)가 필수 — 우리 타깃엔 불필요.
@@ -341,10 +345,10 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 같은 게임 API 라 **모두 같은 벽**(레이트리밋·공유IP, 그리고 WOS 의 캡차)에 부딪힘.
 차이는 회피 수단 — **우리만 GAS 라 전부 막혀 있음**:
 
-| 제약            | 참고들의 우회                                                              | 우리(GAS)                  |
-| --------------- | ------------------------------------------------------------------------- | -------------------------- |
-| 429 / 공유 IP   | 프록시 로테이션(`aiohttp-socks`), WOS **듀얼호스트 부하분산**, ks-rewards **큐+3초 간격** | ❌ 프록시 불가·egress IP 고정 |
-| 캡차 (WOS에 존재) | 자체훈련 **ONNX ~98%** + ddddocr fallback                                 | ❌ ONNX/OCR 런타임 없음     |
+| 제약              | 참고들의 우회                                                                             | 우리(GAS)                     |
+| ----------------- | ----------------------------------------------------------------------------------------- | ----------------------------- |
+| 429 / 공유 IP     | 프록시 로테이션(`aiohttp-socks`), WOS **듀얼호스트 부하분산**, ks-rewards **큐+3초 간격** | ❌ 프록시 불가·egress IP 고정 |
+| 캡차 (WOS에 존재) | 자체훈련 **ONNX ~98%** + ddddocr fallback                                                 | ❌ ONNX/OCR 런타임 없음       |
 
 즉 우리 429 한계는 **코드 버그가 아니라 플랫폼 본질 제약** — 외부 증거로 재확인됨.
 근본 해결은 egress 를 GAS 밖(Cloud Run / Cloudflare Worker 등)으로 옮기는 것뿐.
