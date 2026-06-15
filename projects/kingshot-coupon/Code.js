@@ -518,8 +518,13 @@ function writeGuideSheet_(ss) {
     { size: 11, h: 44 },
   );
   row(
-    '=HYPERLINK("https://kingshotdata.kr","🔗 Coupon source: kingshotdata.kr")',
-    '=HYPERLINK("https://kingshotdata.kr","🔗 쿠폰 출처: kingshotdata.kr")',
+    '=HYPERLINK("https://ks-rewards.com","🔗 Coupon source (primary): ks-rewards.com")',
+    '=HYPERLINK("https://ks-rewards.com","🔗 쿠폰 출처 (주): ks-rewards.com")',
+    { formula: true, size: 10 },
+  );
+  row(
+    '=HYPERLINK("https://kingshotdata.kr","🔗 Fallback source: kingshotdata.kr")',
+    '=HYPERLINK("https://kingshotdata.kr","🔗 예비 출처: kingshotdata.kr")',
     { formula: true, size: 10 },
   );
   gap();
@@ -1830,6 +1835,6 @@ function getValidateFid_() {
 // TODO (향후 개선)
 // ============================================================
 // TODO: 관리자 권한 분리 (Session.getEffectiveUser 기반)
-// (DONE: 자동 쿠폰 동기화(커뮤니티 소스 kingshotdata.kr) — Sync.js, 옵션 레이어/기본 OFF)
+// (DONE: 자동 쿠폰 동기화(주=ks-rewards.com + 예비=kingshotdata.kr) — Sync.js, 옵션 레이어/기본 OFF)
 // (DONE: Telegram → Slack 단일 채널로 정착)
 // (DONE: 대량 처리 자동 이어실행 — stoppedByTime 후 자동 재예약 + RATE_LIMITED 자동 N차 재시도)
