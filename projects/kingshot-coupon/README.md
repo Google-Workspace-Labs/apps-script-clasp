@@ -299,6 +299,66 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 - 시트 카피 시 **설치형 트리거는 복사 안 됨** → 멤버/지인 시트는 켜기 전까지 완전 비활성 = 수동 등록 100% 유지
 - 킬스위치: `AUTO_SYNC_ENABLED='false'` 또는 토글 OFF 로 즉시 정지(트리거 제거)
 
+## 참고 프로젝트 비교 (생태계 분석)
+
+같은 Kingshot/Whiteout 기프트코드 API 를 다루는 외부 프로젝트들. 모두 redemption
+엔진(엔드포인트·salt·sign·err_code)은 우리와 **동일**하고, 갈리는 건 **플랫폼·운영 방식**.
+
+**참고 링크:**
+
+- [ks-rewards.com](https://ks-rewards.com/) — adaja(Kingdom 847) 제작. 무료 호스팅 웹 서비스
+  ([Codeberg 소스](https://codeberg.org/adaja/ks-rewards.com), AGPL-3.0). redemption 로직은 justncodes 기반
+- [justncodes/ks-giftcode](https://github.com/justncodes/ks-giftcode) — Kingshot redemption 로직 "원본"(Python CLI)
+- [kingshot-project/Kingshot-Discord-Bot](https://github.com/kingshot-project/Kingshot-Discord-Bot) — Kingshot Discord 봇 (WOS 봇 fork)
+- [justncodes/wos-giftcode](https://github.com/justncodes/wos-giftcode) · [whiteout-project/bot](https://github.com/whiteout-project/bot) —
+  전작 Whiteout Survival 성숙판 (**캡차 ONNX 솔버 보유**)
+
+### 운영 archetype 3종
+
+| 축            | 우리 (copy-distributed)  | ks-rewards (central SaaS) | Discord 봇 (federated)     |
+| ------------- | ------------------------ | ------------------------- | -------------------------- |
+| 셋업          | **시트 복사 = 끝** (비개발자) | URL 접속                  | Python·호스팅·봇토큰 (개발자) |
+| 비용          | **0** (구글 호스팅)      | 운영자 부담               | 각 운영자 부담             |
+| UI            | 웹앱                     | 웹앱                      | Discord                    |
+| 저장소        | Google Sheet             | SQLite                    | SQLite                     |
+| 코드 발견     | 수동 + 선택적 6h sync    | 자동 15분                 | 커뮤니티 공유 풀 5~10분    |
+| 다중대상      | 전 유저                  | Player ID 리스트          | 연합(alliance) bulk        |
+| 업데이트 전파 | **없음**(복사 동결)      | Docker pull               | GitHub 자동                |
+
+우리 해자 = **0-셋업·0-비용·비개발자 친화**. 참고들은 커뮤니티/연합 스케일 + 기술 운영자
+대상이라 무거운 기계장치(프록시·캡차·자동업데이트)가 필수 — 우리 타깃엔 불필요.
+→ **Discord 봇을 따라가지 말 것** (해자를 버리는 길).
+
+### redemption 엔진: 우리와 동일 (교차검증)
+
+- 엔드포인트 `kingshot-giftcode.centurygame.com/api/{player,gift_code}` · salt `mN4!pQs6JrYwV9` — 3개 소스 모두 일치
+- **킹샷은 캡차 미요구** — ks-rewards·ks-giftcode·KS봇 독립 확인. KS봇은 WOS 에서 물려받은
+  OCR 스택(`onnxruntime`/`rapidocr`)을 **탑재했지만 KS용으론 안 씀**. → 우리 `captcha_code=''` 무캡차 설계가 정답
+- err_code 함정도 동일: WOS 성숙판이 짚는 `40011 SAME TYPE EXCHANGE`(=성공 취급)를 우리도 이미 ALREADY_USED 처리
+
+### 같은 제약, 다른 탈출구 (GAS 한계 재확인)
+
+같은 게임 API 라 **모두 같은 벽**(레이트리밋·공유IP, 그리고 WOS 의 캡차)에 부딪힘.
+차이는 회피 수단 — **우리만 GAS 라 전부 막혀 있음**:
+
+| 제약            | 참고들의 우회                                                              | 우리(GAS)                  |
+| --------------- | ------------------------------------------------------------------------- | -------------------------- |
+| 429 / 공유 IP   | 프록시 로테이션(`aiohttp-socks`), WOS **듀얼호스트 부하분산**, ks-rewards **큐+3초 간격** | ❌ 프록시 불가·egress IP 고정 |
+| 캡차 (WOS에 존재) | 자체훈련 **ONNX ~98%** + ddddocr fallback                                 | ❌ ONNX/OCR 런타임 없음     |
+
+즉 우리 429 한계는 **코드 버그가 아니라 플랫폼 본질 제약** — 외부 증거로 재확인됨.
+근본 해결은 egress 를 GAS 밖(Cloud Run / Cloudflare Worker 등)으로 옮기는 것뿐.
+
+### 향후 보강 후보 (우선순위)
+
+1. 🔴 **캡차 컨틴전시(문서)** — KS 에 캡차가 생기면(WOS 전례) GAS 는 즉시 사망.
+   외부 릴레이(Worker/VPS 가 sign+캡차 처리, GAS 는 호출만)로 전환하는 행동계획을 미리 문서화.
+   IP 문제(위)도 같은 릴레이로 동시 해결
+2. 🟡 **err_code 보강** — `40006 STOVE_LV`(화로레벨 부족), `40017/40018`(VIP/충전 부족) 미매핑 →
+   generic ERROR → 재시도 폭주 + 가짜 알람(40011 함정 재현). **터미널(재시도X·dedup)** 로 분류 필요
+3. 🟡 **User-Agent 헤더** — 참고 v4 는 랜덤 UA + `sec-*` 안티봇 회피 도입. 우리는 Origin/Referer 만
+   — UA 추가로 cloudflare/HTML 차단 빈도 완화 여지 (근본 해결은 1번)
+
 ## 알려진 제약 / 주의
 
 - **GAS 공유 IP 차단**: 킹샷 API 도 비슷한 IP throttle 가능 (대량 등록 시 429 누적).
