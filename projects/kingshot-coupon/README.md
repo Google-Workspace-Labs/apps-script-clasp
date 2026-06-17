@@ -15,7 +15,7 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 | `Config.js`       | SALT/URL/시트명/지연·재시도/정원/TTL/Slack 설정 (요청 단위 캐시 포함)                |
 | `Registration.js` | 웹앱 (`doGet`/api\*), 관리 액션 (등록·토글·삭제·TTL·Slack 설정)                      |
 | `Notify.js`       | Slack 알림 (`notify_` dispatcher · 카테고리 게이트), 배치 트리거 예약                |
-| `Sync.js`         | 외부 쿠폰 소스 자동 동기화 (옵션 레이어 · 기본 OFF · 6h 트리거 · 전부 try/catch)     |
+| `Sync.js`         | 외부 쿠폰 소스 자동 동기화 (옵션 레이어 · 기본 OFF · 1h 트리거 · 전부 try/catch)     |
 | `index.html`      | 웹 UI (등록·관리, 모바일 대응, 토글 슬라이더, 도움말 프롬프트)                       |
 
 ## 시트 구조
@@ -137,7 +137,7 @@ container-bound 스크립트 (스프레드시트에 연결).
 |           | Clean Invalid Coupons         | 존재하지 않는(오타) `INVALID_CODE` 쿠폰 행 삭제(+로그)      |
 |           | Clear System Logs             | `system_logs` 비우기                                        |
 | 🔄 동기화 | 지금 동기화 (1회)             | 외부 소스 즉시 1회 동기화 (테스트·즉시 반영)                |
-|           | 자동 동기화 ON/OFF            | 6시간 주기 자동 동기화 토글 (트리거 설치/제거)              |
+|           | 자동 동기화 ON/OFF            | 매시간 자동 동기화 토글 (트리거 설치/제거)                  |
 | 🔍 진단   | Diagnose Dedup                | logs 시트 dedup 누수 진단 (strict/case/trim/type 변형 비교) |
 
 ## 웹 UI (`/exec`)
@@ -280,6 +280,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 | `AUTO_SYNC_ENABLED`                 | (OFF)                                       | `'true'` 면 자동 동기화 ON (UI/메뉴 토글과 동일)     |
 | `COUPON_SOURCE_URL`                 | `https://ks-rewards.com/api/codes`          | 주 동기화 소스 URL 교체 (ks-rewards 스키마)          |
 | `COUPON_SOURCE_URL_FALLBACK`        | `https://kingshotdata.kr/data/coupons.json` | 예비 소스 URL 교체 (kingshotdata 스키마, 주 실패 시) |
+| `SYNC_FAIL_AUTOOFF_STREAK`          | `168` (≈1주일 @1h)                          | 모든 소스 연속 실패 N회 시 자동 OFF (0이면 끔)       |
+| `SYNC_FAIL_STREAK`                  | —                                           | 자동 관리 (연속 실패 카운터, 성공 시 0)              |
 | `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용)                         |
 | `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, 관리 UI 표시)           |
 | `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각·결과, 관리 UI 표시)    |
@@ -289,7 +291,7 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 
 외부 커뮤니티 소스가 발행 쿠폰을 JSON 으로 공개한다. 이를 주기적으로 받아 **시트에 없는
 "아직 유효한" 신규 코드만** 자동 등록 + 배치한다. **기본 OFF** — 관리 UI 토글 또는 메뉴
-`🔄 동기화 ▸ 자동 동기화 ON/OFF` 로 켠다(6시간 주기).
+`🔄 동기화 ▸ 자동 동기화 ON/OFF` 로 켠다(매시간 주기). 주기 변경 시 토글 OFF→ON 으로 재설치해야 반영된다.
 
 **소스 = 주(primary) + 예비(fallback)** — 인프라가 독립이라 실패가 상관없음(uncorrelated):
 
@@ -309,7 +311,14 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 **격리 보장 (두 소스가 다 죽어도 본체 무영향 — "꺼놨을 때"와 동일):**
 
 - 전 과정 `try/catch` + **각 소스 fetch 도 독립 try/catch** — 네트워크/JSON/스키마/CF차단 등 어떤
-  오류도 삼키고 Slack 경보만, 트리거 밖으로 안 던짐. 한 소스 실패가 다른 소스·본체로 안 번짐
+  오류도 삼키고 트리거 밖으로 안 던짐. 한 소스 실패가 다른 소스·본체로 안 번짐
+- **실패 알림(엣지 트리거):** Slack 실패 경보는 **정상→실패 전환 1회**만, 복구 시 **실패→정상 1회**만
+  (`LAST_SYNC_RESULT.ok` 비교). 장애 지속돼도 매 회차 반복 안 함 — 1시간 폴링에서 하루 24번
+  노이즈 방지. `logs` 에는 매 회차 기록. 실패 알림엔 "장기화 시 자동 동기화 OFF 권장" 안내 포함
+- **자동 OFF 백스톱:** **모든 소스가 연속 168회(≈1주일 @1h) 실패**하면 자동으로 동기화 OFF + 알림 1회
+  (영구 death 정리 — URL·스키마 변경, 사이트 폐쇄 등). 성공 1회로 카운터 0 리셋이라 **일시 장애는
+  self-heal, 진짜 영구 고장만 꺼짐**. 임계값은 `SYNC_FAIL_AUTOOFF_STREAK` 로 조정(0=끔). 엣지 알림
+  (조기경보)과 보완 관계 — 복구 후 다시 켜는 건 수동(의도된 "give up" 상태)
 - 기존 수동 등록/배치 경로와 완전 분리 — `Sync.js` 통째로 삭제해도 무손상
 - 시트 카피 시 **설치형 트리거는 복사 안 됨** → 멤버/지인 시트는 켜기 전까지 완전 비활성 = 수동 등록 100% 유지
 - 킬스위치: `AUTO_SYNC_ENABLED='false'` 또는 토글 OFF 로 즉시 정지(트리거 제거)
@@ -336,7 +345,7 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
 | 비용          | **0** (구글 호스팅)           | 운영자 부담               | 각 운영자 부담                |
 | UI            | 웹앱                          | 웹앱                      | Discord                       |
 | 저장소        | Google Sheet                  | SQLite                    | SQLite                        |
-| 코드 발견     | 수동 + 선택적 6h sync         | 자동 15분                 | 커뮤니티 공유 풀 5~10분       |
+| 코드 발견     | 수동 + 선택적 1h sync         | 자동 15분                 | 커뮤니티 공유 풀 5~10분       |
 | 다중대상      | 전 유저                       | Player ID 리스트          | 연합(alliance) bulk           |
 | 업데이트 전파 | **없음**(복사 동결)           | Docker pull               | GitHub 자동                   |
 

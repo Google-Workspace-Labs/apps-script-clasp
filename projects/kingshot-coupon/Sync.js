@@ -14,6 +14,11 @@
  *   - 폴백은 **주 소스 fetch/파싱 실패 시에만** 호출(주가 정상이면 코드 0개라도 예비 안 봄 →
  *     스테일·오타 잡음 상시 혼입 방지). 둘 다 실패하면 그 회차만 조용히 스킵.
  *
+ * 알림 정책(엣지 트리거): Slack 실패 알림은 **정상→실패 전환 1회**만, 복구 시 **실패→정상 전환 1회**만.
+ *   장애가 지속돼도 매 회차 반복 알림 안 함(1시간 폴링에서 하루 24번 노이즈 방지). log 는 매 회차 기록.
+ *   백스톱: 모든 소스가 연속 SYNC_FAIL_AUTOOFF_STREAK회(≈1주일) 실패하면 자동 OFF + 알림 1회(영구 death 정리).
+ *   성공 1회로 카운터 0 리셋 → 일시 장애는 self-heal, 진짜 영구 고장만 꺼짐.
+ *
  * ⚠️ 격리 원칙 (절대 위반 금지):
  *   - 이 파일은 기존 수동 등록/배치 경로와 완전히 독립. 통째로 삭제해도 기존 기능 무손상.
  *   - 모든 진입점 + 각 소스 fetch 가 try/catch 로 감싸여 어떤 오류(네트워크/JSON/스키마/CF차단)도
@@ -30,12 +35,17 @@
  *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 아래 기본 상수 = kingshotdata)
  *   - LAST_SYNC_AT            : 마지막 동기화 시각(KST)
  *   - LAST_SYNC_RESULT        : 마지막 동기화 결과 요약(표시용)
+ *   - SYNC_FAIL_STREAK        : 연속 실패 횟수(자동 관리, 성공 시 0) — 자동 OFF 백스톱용
+ *   - SYNC_FAIL_AUTOOFF_STREAK : 자동 OFF 임계값(미설정 시 168=1주일, 0이면 백스톱 끔)
  */
 
 const COUPON_SOURCE_URL_DEFAULT = 'https://ks-rewards.com/api/codes'; // 주
 const COUPON_SOURCE_URL_FALLBACK_DEFAULT = 'https://kingshotdata.kr/data/coupons.json'; // 예비
 const SYNC_TRIGGER_HANDLER = 'syncCouponsScheduled';
-const SYNC_INTERVAL_HOURS = 6; // 하루 4회
+const SYNC_INTERVAL_HOURS = 1; // 매시간(24회/일) — 소스 폴링만, 킹샷 API 부하와 무관(신규코드 dedup→1회 등록)
+// 연속 실패(=모든 소스 동시 실패) N회 도달 시 자동 OFF — 영구 death 백스톱. 168 ≈ 1주일 @1h.
+// 일시 장애엔 안 꺼짐(성공 1회로 0 리셋). Property(SYNC_FAIL_AUTOOFF_STREAK)로 오버라이드, 0이면 끔.
+const SYNC_FAIL_AUTOOFF_STREAK = 168;
 
 // ============================================================
 // 트리거 진입점 (시간 기반) — 토글 OFF 면 즉시 종료
@@ -184,13 +194,16 @@ function collectSourceCodes_(startedAt, today) {
  */
 function runCouponSync_(isManual) {
   const startedAt = new Date();
+  // 직전 상태를 stampSync_ 가 덮어쓰기 전에 캡처 → 알림은 상태 전이(엣지)에서만.
+  let wasOk = true;
   try {
+    wasOk = lastSyncWasOk_();
     const today = Utilities.formatDate(startedAt, 'Asia/Seoul', 'yyyy-MM-dd');
 
     // 1) 소스 수집(주→예비 폴백). 둘 다 죽으면 조용히 실패 처리.
     const src = collectSourceCodes_(startedAt, today);
     if (src.source === null) {
-      return syncFail_(`모든 소스 실패 — ${src.error}`, isManual);
+      return syncFail_(`모든 소스 실패 — ${src.error}`, isManual, wasOk);
     }
 
     // 2) 후보 선별 — 소스 내 dedup + 시트(활성/죽은코드 캐시)에 없는 것만
@@ -238,7 +251,23 @@ function runCouponSync_(isManual) {
       rej: rejected.length,
       cand: candidates.length,
     });
+    // 성공(주·예비 중 하나라도 응답) → 자동 OFF 카운터 리셋. 일시 장애가 임계값에 누적되지 않게.
+    PropertiesService.getScriptProperties().setProperty('SYNC_FAIL_STREAK', '0');
     logSystem_('INFO', 'sync', summary, '');
+
+    // 직전이 실패였으면(엣지: 실패→정상) 복구 알림 1회. 신규 0건이어도 "다시 동작함"을 알림.
+    if (!wasOk) {
+      notify_(
+        {
+          title: nt('sync_recover_t'),
+          description: nt('sync_recover_d'),
+          color: NOTIFY_COLORS.green,
+          timestamp: startedAt.toISOString(),
+        },
+        'sync',
+        'sync',
+      );
+    }
 
     if (registered.length) {
       notify_(
@@ -267,30 +296,95 @@ function runCouponSync_(isManual) {
     };
   } catch (err) {
     // 최후 안전망 — 어떤 예외도 트리거/호출자 밖으로 새지 않음
-    return syncFail_(err && err.message ? err.message : String(err), isManual);
+    return syncFail_(err && err.message ? err.message : String(err), isManual, wasOk);
   }
 }
 
-/** 동기화 실패 처리 — 기록/알림도 실패하면 조용히 삼킨다. */
-function syncFail_(reason, isManual) {
+/**
+ * 동기화 실패 처리 — 기록/알림도 실패하면 조용히 삼킨다.
+ * Slack 알림은 **상태 전이(정상→실패)일 때만** 보낸다(wasOk===true). 이미 실패 중이면 log/stamp 만 —
+ * 1시간 폴링에서 장애 지속 시 매시간 같은 알림이 쏟아지는 노이즈를 막는다. 복구 알림은 runCouponSync_ 가 담당.
+ */
+function syncFail_(reason, isManual, wasOk) {
   const now = new Date();
   try {
     stampSync_(now, { ok: false, reason: String(reason).slice(0, 150) });
     logSystem_('WARN', 'sync', `sync failed: ${reason}`, '');
-    notify_(
-      {
-        title: nt('sync_fail_t'),
-        description: nt('sync_fail_d', { reason }),
-        color: NOTIFY_COLORS.orange,
-        timestamp: now.toISOString(),
-      },
-      'sync',
-      'sync',
-    );
+    if (wasOk !== false) {
+      notify_(
+        {
+          title: nt('sync_fail_t'),
+          description: nt('sync_fail_d', { reason }),
+          color: NOTIFY_COLORS.orange,
+          timestamp: now.toISOString(),
+        },
+        'sync',
+        'sync',
+      );
+    }
+    bumpFailStreakAndMaybeAutoOff_(reason, isManual);
   } catch (e) {
     // 로깅/알림 실패도 무시 — 격리 원칙
   }
   return { ok: false, isManual: isManual === true, code: 'sync_fail', data: { reason } };
+}
+
+/**
+ * 실패 스트릭 +1, 임계값(SYNC_FAIL_AUTOOFF_STREAK) 도달 시 자동 OFF.
+ * "실패" = 모든 소스 동시 실패(collectSourceCodes_ source=null) 또는 예외. 소스 하나라도 성공하면
+ * 성공 경로에서 0으로 리셋된다. 수동 "지금 동기화"(테스트)와 OFF 상태는 카운트하지 않는다.
+ */
+function bumpFailStreakAndMaybeAutoOff_(reason, isManual) {
+  if (isManual === true) {
+    return; // 수동 테스트는 백스톱 스트릭에 영향 X
+  }
+  const props = PropertiesService.getScriptProperties();
+  if (props.getProperty('AUTO_SYNC_ENABLED') !== 'true') {
+    return; // 꺼져 있으면 카운트 무의미
+  }
+  const streak = (parseInt(props.getProperty('SYNC_FAIL_STREAK'), 10) || 0) + 1;
+  props.setProperty('SYNC_FAIL_STREAK', String(streak));
+  const limit =
+    parseInt(props.getProperty('SYNC_FAIL_AUTOOFF_STREAK'), 10) || SYNC_FAIL_AUTOOFF_STREAK;
+  if (limit > 0 && streak >= limit) {
+    autoOffSync_(streak, reason);
+  }
+}
+
+/** 연속 실패 임계값 도달 → 자동 동기화 OFF + 트리거 제거 + 알림 1회(소스 영구 death 정리). */
+function autoOffSync_(streak, reason) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('AUTO_SYNC_ENABLED', 'false');
+  props.setProperty('SYNC_FAIL_STREAK', '0'); // 다음에 다시 켤 때 깨끗하게
+  removeSyncTrigger_();
+  logSystem_('WARN', 'settings-sync', `auto-sync OFF — ${streak} consecutive failures`, '');
+  notify_(
+    {
+      title: nt('sync_autooff_t'),
+      description: nt('sync_autooff_d', { n: streak, reason: reason || '' }),
+      color: NOTIFY_COLORS.orange,
+      timestamp: new Date().toISOString(),
+    },
+    'settings-sync',
+    'sync',
+  );
+}
+
+/**
+ * 직전 동기화가 정상(ok)이었는지 — LAST_SYNC_RESULT 의 ok 플래그로 판정.
+ * 없거나 파싱 실패면 정상(true)으로 가정 → 첫 실패는 반드시 알림.
+ */
+function lastSyncWasOk_() {
+  try {
+    const raw = PropertiesService.getScriptProperties().getProperty('LAST_SYNC_RESULT');
+    if (!raw) {
+      return true;
+    }
+    const obj = JSON.parse(raw);
+    return !obj || obj.ok !== false;
+  } catch (e) {
+    return true;
+  }
 }
 
 /**
@@ -311,9 +405,10 @@ function stampSync_(date, result) {
 // 트리거 설치/제거
 // ============================================================
 
-/** 6시간 주기 시간 트리거 설치(중복 누적 방지 위해 기존 것 제거 후 1개만) */
+/** 매시간 시간 트리거 설치(중복 누적 방지 위해 기존 것 제거 후 1개만). 주기 변경은 토글 OFF→ON 시 재설치되어야 반영됨. */
 function installSyncTrigger_() {
   removeTriggers_(SYNC_TRIGGER_HANDLER);
+  PropertiesService.getScriptProperties().setProperty('SYNC_FAIL_STREAK', '0'); // 켤 때 백스톱 카운터 초기화
   ScriptApp.newTrigger(SYNC_TRIGGER_HANDLER).timeBased().everyHours(SYNC_INTERVAL_HOURS).create();
 }
 

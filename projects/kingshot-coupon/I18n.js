@@ -92,7 +92,13 @@ const SLACK_MSG = {
       `소스에서 신규 쿠폰 **${d.n}건** 등록\n🎟 ${d.codes}` +
       (d.rej ? `\n⚠️ 거부/보류 ${d.rej}건: ${d.rejCodes}` : ''),
     sync_fail_t: '⚠️ 자동 쿠폰 동기화 실패',
-    sync_fail_d: (d) => `${d.reason}\n_기존 수동 등록은 정상 동작합니다._`,
+    sync_fail_d: (d) =>
+      `${d.reason}\n_기존 수동 등록은 정상 동작합니다._\n계속 실패하면 자동 동기화를 꺼두는 걸 권장합니다.`,
+    sync_recover_t: '✅ 자동 쿠폰 동기화 복구',
+    sync_recover_d: () => '소스 응답이 정상으로 돌아왔습니다.',
+    sync_autooff_t: '🛑 자동 쿠폰 동기화 자동 종료',
+    sync_autooff_d: (d) =>
+      `소스가 ${d.n}회 연속 실패해 자동 동기화를 껐어요.\n${d.reason}\n_소스가 복구되면 관리에서 다시 켜주세요. 수동 등록은 정상입니다._`,
     sync_set_t: '🔄 자동 쿠폰 동기화 설정',
     sync_set_d: (d) =>
       `자동 동기화: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
@@ -272,7 +278,13 @@ const SLACK_MSG = {
       `Registered **${d.n}** new coupon(s) from source\n🎟 ${d.codes}` +
       (d.rej ? `\n⚠️ ${d.rej} rejected/pending: ${d.rejCodes}` : ''),
     sync_fail_t: '⚠️ Auto coupon sync failed',
-    sync_fail_d: (d) => `${d.reason}\n_Manual registration still works fine._`,
+    sync_fail_d: (d) =>
+      `${d.reason}\n_Manual registration still works fine._\nIf it keeps failing, consider turning auto-sync off.`,
+    sync_recover_t: '✅ Auto coupon sync recovered',
+    sync_recover_d: () => 'Source responses are back to normal.',
+    sync_autooff_t: '🛑 Auto coupon sync auto-disabled',
+    sync_autooff_d: (d) =>
+      `The source failed ${d.n} times in a row, so auto-sync was turned off.\n${d.reason}\n_Re-enable it in Manage once the source recovers. Manual registration still works._`,
     sync_set_t: '🔄 Auto coupon sync setting',
     sync_set_d: (d) =>
       `Auto-sync: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +

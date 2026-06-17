@@ -17,6 +17,7 @@
  *   - AUTO_SYNC_ENABLED      : 외부 쿠폰 소스 자동 동기화 ON/OFF ('true' 면 ON, 기본 OFF) — Sync.js
  *   - COUPON_SOURCE_URL      : 주 동기화 소스 URL (미설정 시 Sync.js 기본 = ks-rewards)
  *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 Sync.js 기본 = kingshotdata; 주 실패 시)
+ *   - SYNC_FAIL_AUTOOFF_STREAK : 모든 소스 연속 실패 N회 시 자동 동기화 OFF (미설정 시 168=1주일@1h, 0이면 끔) — Sync.js
  */
 
 // 운영사가 salt 를 교체하면 여기 또는 Script Property(KINGSHOT_SALT)만 수정하면 됩니다.

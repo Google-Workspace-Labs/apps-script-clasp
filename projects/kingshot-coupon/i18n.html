@@ -27,7 +27,7 @@
           m_batch: '⚡ 즉시 배치 실행',
           btn_run_now: '지금 실행',
           m_sync: '🔄 자동 쿠폰 동기화',
-          m_sync_hint: '커뮤니티 신규 · 6시간마다',
+          m_sync_hint: '커뮤니티 신규 · 1시간마다',
           btn_sync_now: '지금 동기화 (1회)',
           btn_syncing: '동기화 중…',
           btn_synced: '✓ 완료',
@@ -79,13 +79,16 @@
             '변경·삭제 같은 <b>관리 동작</b>에 4자리 비밀번호가 필요해요.<br />• 비밀번호는 <b>배포자만</b> 알아요 — 시트 <b>📖 Guide</b> 탭에서 확인<br />• 일반 멤버는 등록·조회만 하면 되고 비밀번호는 필요 없어요',
           man_t5: '⚙️ 관리 설정',
           man_b5:
-            '운영자 전용 설정 묶음 (비번 입력 후 펼침).<br />• <b>쿠폰 자동만료(일)</b>: N일 지난 쿠폰 자동 비활성 (0=끔, 기본 30)<br />• <b>즉시 배치 실행</b>: 지금 바로 발급 1회 (보통 자동이라 거의 안 씀)<br />• <b>자동 쿠폰 동기화</b>: 커뮤니티 소스에서 신규 쿠폰을 6시간마다 자동 등록<br />• <b>Slack 알림</b>: 결과를 Slack 채널로. URL·언어 설정 + <b>알림 카테고리</b>(배치·유저·쿠폰·설정·동기화 등 받을 알림을 항목별로 켜고 끄기)',
+            '운영자 전용 설정 묶음 (비번 입력 후 펼침).<br />• <b>쿠폰 자동만료(일)</b>: N일 지난 쿠폰 자동 비활성 (0=끔, 기본 30)<br />• <b>즉시 배치 실행</b>: 지금 바로 발급 1회 (보통 자동이라 거의 안 씀)<br />• <b>자동 쿠폰 동기화</b>: 커뮤니티 소스에서 신규 쿠폰을 1시간마다 자동 등록<br />• <b>Slack 알림</b>: 결과를 Slack 채널로. URL·언어 설정 + <b>알림 카테고리</b>(배치·유저·쿠폰·설정·동기화 등 받을 알림을 항목별로 켜고 끄기)',
           man_t6: '📋 목록 관리 (유저·쿠폰)',
           man_b6:
             '목록에서 직접 관리해요 (비번 필요).<br />• <b>토글</b>: 활성↔비활성 (비활성은 배치에서 제외, 데이터는 유지)<br />• <b>✕</b>: 삭제<br />• <b>검색·필터</b>(전체/활성/비활성)로 빠르게 찾기<br />• 💡 쿠폰은 자동만료되니 수동 비활성은 보통 불필요 — 원하면 직접도 OK',
           man_t7: '❓ 자주 묻는 질문',
           man_b7:
-            '• <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초). 자동 동기화 ON이면 6시간마다 새 쿠폰 확인<br />• <b>비밀번호를 모르겠어요</b> 시트 <b>📖 Guide</b> 탭에서 확인(배포자 전용)<br />• <b>이 앱을 복사하면?</b> Slack·설정값은 복사 안 됨 → 각자 새로 설정',
+            '• <b>배치는 언제 도나요?</b> 유저·쿠폰 등록 시 자동(약 3분/30초). 자동 동기화 ON이면 1시간마다 새 쿠폰 확인<br />• <b>비밀번호를 모르겠어요</b> 시트 <b>📖 Guide</b> 탭에서 확인(배포자 전용)<br />• <b>이 앱을 복사하면?</b> Slack·설정값은 복사 안 됨 → 각자 새로 설정',
+          man_t8: '🔄 자동 쿠폰 동기화',
+          man_b8:
+            '커뮤니티에 새 쿠폰이 뜨면 <b>1시간마다 자동으로 받아 등록</b>해요 — 직접 안 넣어도 멤버가 자동으로 받습니다. (기본 OFF)<br />• <b>안전해요</b>: 검증된 새 코드만 등록하고, 외부 소스가 멈춰도 앱은 멀쩡(수동 등록은 항상 정상)<br />• <b>알아서 관리</b>: 문제가 생기면 한 번만 알리고, 오래 안 되면 자동으로 꺼져요<br />• <b>켜두면 좋아요</b>: 쿠폰 챙기기 번거롭거나 자주 놓칠 때<br />• <b>꺼두세요</b>: 쿠폰을 직접 관리하고 싶을 때',
           need_id: '❌ ID 를 입력하세요.',
           looking_up: '⏳ 조회 중...',
           lookup_failed: '조회 실패',
@@ -214,7 +217,7 @@
           m_batch: '⚡ Run batch now',
           btn_run_now: 'Run now',
           m_sync: '🔄 Auto coupon sync',
-          m_sync_hint: 'new coupons · every 6h',
+          m_sync_hint: 'new coupons · every 1h',
           btn_sync_now: 'Sync now (once)',
           btn_syncing: 'Syncing…',
           btn_synced: '✓ Done',
@@ -266,13 +269,16 @@
             'A 4-digit password is required for <b>admin actions</b> like changes/deletes.<br />• Only the <b>deployer</b> knows it — see the <b>📖 Guide</b> tab in the sheet<br />• Regular members only register/look up and don’t need the password',
           man_t5: '⚙️ Admin settings',
           man_b5:
-            'Deployer-only settings (expand after entering the password).<br />• <b>Coupon auto-expiry (days)</b>: auto-disable codes older than N days (0=off, default 30)<br />• <b>Run batch now</b>: deliver once right now (usually automatic, rarely needed)<br />• <b>Auto coupon sync</b>: auto-register new codes from the community source every 6h<br />• <b>Slack alerts</b>: send results to a Slack channel. Set URL·language + <b>notification categories</b> (toggle which events to receive: batch·user·coupon·settings·sync)',
+            'Deployer-only settings (expand after entering the password).<br />• <b>Coupon auto-expiry (days)</b>: auto-disable codes older than N days (0=off, default 30)<br />• <b>Run batch now</b>: deliver once right now (usually automatic, rarely needed)<br />• <b>Auto coupon sync</b>: auto-register new codes from the community source every 1h<br />• <b>Slack alerts</b>: send results to a Slack channel. Set URL·language + <b>notification categories</b> (toggle which events to receive: batch·user·coupon·settings·sync)',
           man_t6: '📋 Managing lists (users·coupons)',
           man_b6:
             'Manage directly from the lists (password required).<br />• <b>Toggle</b>: active↔inactive (inactive is excluded from the batch, data kept)<br />• <b>✕</b>: delete<br />• <b>Search·filter</b> (All/Active/Inactive) to find quickly<br />• 💡 Coupons auto-expire, so manual deactivation is usually unnecessary — you can still do it manually',
           man_t7: '❓ FAQ',
           man_b7:
-            "• <b>When does the batch run?</b> Auto on user/coupon registration (~3 min/30s). If auto-sync is ON, it checks for new coupons every 6h<br />• <b>I don't know the password</b> See the <b>📖 Guide</b> tab in the sheet (deployer only)<br />• <b>If you copy this app?</b> Slack/settings don't copy → each sets up their own",
+            "• <b>When does the batch run?</b> Auto on user/coupon registration (~3 min/30s). If auto-sync is ON, it checks for new coupons every 1h<br />• <b>I don't know the password</b> See the <b>📖 Guide</b> tab in the sheet (deployer only)<br />• <b>If you copy this app?</b> Slack/settings don't copy → each sets up their own",
+          man_t8: '🔄 Auto coupon sync',
+          man_b8:
+            'When new coupons appear in the community, it <b>auto-fetches and registers them every hour</b> — members get them without you typing anything. (Default OFF)<br />• <b>Safe</b>: only validated new codes, and if the source stops the app is unaffected (manual registration always works)<br />• <b>Self-managing</b>: alerts you once if something breaks, and auto-disables itself if it stays broken<br />• <b>Keep it on</b>: if collecting codes is tedious or you miss them often<br />• <b>Turn it off</b>: if you prefer managing codes yourself',
           need_id: '❌ Enter an ID.',
           looking_up: '⏳ Looking up...',
           lookup_failed: 'Lookup failed',
