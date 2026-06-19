@@ -201,21 +201,10 @@ UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 
 ### 알림 누락 시 진단 (GAS 공유 IP rate limit)
 
-Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지만 안전망 적용.
-
-**429 대응 정책** (실측 기반, 무지성 재시도 회피):
-
-- **Cloudflare 차단 (cf-ray 있음)** — IP 평판 문제, 재시도 의미 없음 → **재시도 0회**
-- **긴 retry-after (>20초)** — 서버가 "오래 기다려" 라고 했는데 10초 캡 안에선
-  어차피 또 429 → **재시도 0회**
-- **짧은 throttle** (per-webhook rate limit 등) → 최대 5회 재시도
-  (`retry_after` 헤더 존중, 캡 10초)
-
-`system_logs` 시트 `slack` source 행에서 시도별 HTTP 코드 + 429 시 헤더
-(`retry-after`/`cf-ray`) 진단 가능. Cloudflare 차단/긴 retry-after 케이스는
-포기 사유까지 명시적으로 기록됨.
-
-누락 사례가 잦으면: ① 등록 burst 줄이기 ② egress 를 GAS 밖(전용 IP 프록시)으로
+Slack 도 드물게 throttle 가능 (드묾, 안전망 적용). **429 차등 처리**: Cloudflare 차단(cf-ray)·긴
+retry-after(>20s)면 재시도 0회, 짧은 throttle 만 최대 5회(`retry_after` 존중·캡 10s). `system_logs`
+의 `slack` source 행에서 시도별 HTTP 코드·헤더·포기 사유를 진단할 수 있다. 누락이 잦으면 등록
+burst 를 줄이거나 egress 를 GAS 밖(전용 IP)으로 분리.
 
 ## 동작 메모
 
@@ -247,13 +236,8 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
   - **RATE_LIMITED 자동 재시도 → 180s (3분), 최대 3회** (warn>0 감지 시)
   - 같은 핸들러 트리거가 이미 있으면 **항상 가장 짧은 게 이김** —
     유저(180s) 예약된 상태에서 쿠폰(30s) 들어오면 30s 로 단축. 자연스럽게 합쳐짐
-- **RATE_LIMITED 자동 N차 재시도** (운영 자동화):
-  - 배치 종료 시 `stats.warn > 0` (rate limit/CAPTCHA/ERROR 감지) → 3분 cool-down 후
-    자동 재시도 (`BATCH_RL_RETRY_COUNT` Script Property 로 카운터 관리)
-  - 최대 3회 재시도 후에도 warn>0 이면 → 카운터 리셋 + 임베드 footer 에
-    "🚫 3회 재시도 후 X건 영구 차단 — 수동 확인 필요" 명시 (사람 개입 신호)
-  - warn=0 으로 회복하면 → 카운터 리셋 + footer 에 "✅ 자동 재시도 N회 만에 회복"
-  - 별도 알림 카테고리 없음 — 기존 `batch` 카테고리 토글로 통합 관리 (footer 한 줄로 단계 표시)
+- **RATE_LIMITED 자동 N차 재시도**: 배치 종료 시 warn>0(rate limit 등) 감지 → 3분 뒤 자동 재시도
+  (최대 3회, `BATCH_RL_RETRY_COUNT` 카운터). 회복/포기 결과는 배치 임베드 footer 에 한 줄로 표시
 - **마지막 배치 시각**: `LAST_BATCH_AT` Script Property 에 KST 시각 자동 기록 →
   관리 UI 의 "⚡ 즉시 배치 실행" 옆 인라인 표시 (시트 안 봐도 신선도 판단 가능)
 - **배치 트리거 청소**: `runCouponBatch` 종료 시 `removeTriggers_('runCouponBatch')`
@@ -360,46 +344,9 @@ Slack 도 드물게 throttle 가능 — 일반적으로 거의 안 일어나지�
   OCR 스택(`onnxruntime`/`rapidocr`)을 **탑재했지만 KS용으론 안 씀**. → 우리 `captcha_code=''` 무캡차 설계가 정답
 - err_code 함정도 동일: WOS 성숙판이 짚는 `40011 SAME TYPE EXCHANGE`(=성공 취급)를 우리도 이미 ALREADY_USED 처리
 
-### 같은 제약, 다른 탈출구 (GAS 한계 재확인)
-
-같은 게임 API 라 **모두 같은 벽**(레이트리밋·공유IP, 그리고 WOS 의 캡차)에 부딪힘.
-차이는 회피 수단 — **우리만 GAS 라 전부 막혀 있음**:
-
-| 제약              | 참고들의 우회                                                                             | 우리(GAS)                     |
-| ----------------- | ----------------------------------------------------------------------------------------- | ----------------------------- |
-| 429 / 공유 IP     | 프록시 로테이션(`aiohttp-socks`), WOS **듀얼호스트 부하분산**, ks-rewards **큐+3초 간격** | ❌ 프록시 불가·egress IP 고정 |
-| 캡차 (WOS에 존재) | 자체훈련 **ONNX ~98%** + ddddocr fallback                                                 | ❌ ONNX/OCR 런타임 없음       |
-
-즉 우리 429 한계는 **코드 버그가 아니라 플랫폼 본질 제약** — 외부 증거로 재확인됨.
-근본 해결은 egress 를 GAS 밖(Cloud Run / Cloudflare Worker 등)으로 옮기는 것뿐.
-
-### 향후 보강 후보 (우선순위)
-
-1. 🔴 **캡차 컨틴전시(문서)** — KS 에 캡차가 생기면(WOS 전례) GAS 는 즉시 사망.
-   외부 릴레이(Worker/VPS 가 sign+캡차 처리, GAS 는 호출만)로 전환하는 행동계획을 미리 문서화.
-   IP 문제(위)도 같은 릴레이로 동시 해결
-2. ✅ **err_code 보강 (완료)** — `40006 STOVE_LV`·`40017/40018`(VIP/충전)·`40005` →
-   `CONDITION_NOT_MET`/`ALREADY_USED` 터미널 분류. ERROR 오분류로 인한 재시도 폭주·가짜 알람 차단.
-3. 🟡 **User-Agent 헤더** — 참고 v4 는 랜덤 UA + `sec-*` 안티봇 회피 도입. 우리는 Origin/Referer 만
-   — UA 추가로 cloudflare/HTML 차단 빈도 완화 여지 (근본 해결은 아래 컨틴전시)
-
-## 컨틴전시: egress-off-GAS (캡차 도입 / Discord 알림)
-
-GAS 의 두 가지 구조적 한계 — ① 킹샷 API 에 **캡차가 생기면** GAS 는 ONNX/OCR 런타임이 없어 즉시 사망,
-② **Discord 알림**은 GAS 공유 IP 가 Discord Cloudflare 에 차단됨(그래서 현재 Slack 만) — 은 **둘 다 같은 해법**:
-egress(외부 호출)를 GAS 밖 **릴레이**로 빼면 된다. GAS 는 시트+웹UI 로 남고, 릴레이가 외부 API 를 대신 호출.
-
-> 현재는 **둘 다 불필요**(킹샷 무캡차 + Slack 정상). "그날이 오면 이 표대로" 용 행동계획.
-
-| 필요             | 릴레이가 하는 일                                                   | 추천 인프라                                                                                   | 난이도 |
-| ---------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------ |
-| **Discord 알림** | GAS → 릴레이 → Discord webhook (payload 전달만)                    | Cloudflare Workers(무료) 또는 Vercel 함수                                                     | 쉬움   |
-| **캡차 대응**    | login → 캡차 이미지 fetch → **ONNX/OCR 풀기** → submit → 결과 반환 | Vercel(Python+Fluid Compute, 학습 ONNX 모델) 시작 → 대량이면 Fly.io/Railway/VPS 상시 컨테이너 | 중~상  |
-
-**핵심 주의 — IP 평판:** 릴레이를 둬도 **serverless/데이터센터 IP 가 Century(킹샷) Cloudflare 에 또 막힐 수 있음**
-(레퍼런스 봇들이 프록시 로테이션·듀얼호스트를 쓰는 이유). Discord 는 IP 관대 → 아무 데나 OK,
-**캡차 릴레이는 막히면 residential 프록시 추가**(처음부터는 불필요). 자세한 레퍼런스 비교는
-[참고 프로젝트 비교](#참고-프로젝트-비교-생태계-분석) 참조.
+> 같은 게임 API 라 모두 같은 벽(레이트리밋·공유IP, WOS 의 캡차)에 부딪히고, 참고들은 프록시
+> 로테이션·ONNX 캡차솔버로 우회하지만 **우리만 GAS 라 그 우회가 전부 막혀 있음**. 우리 429 한계는
+> 코드 버그가 아니라 플랫폼 본질 제약(외부 증거로 재확인).
 
 ## 알려진 제약 / 주의
 
