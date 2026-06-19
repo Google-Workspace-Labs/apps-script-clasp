@@ -23,10 +23,10 @@
   "type": "module",
   "scripts": {
     "prepare": "husky",
-    "format": "prettier --write 'projects/**/*.{js,json}'",
-    "format:check": "prettier --check 'projects/**/*.{js,json}'",
-    "lint": "eslint 'projects/**/*.js'",
-    "lint:fix": "eslint --fix 'projects/**/*.js'"
+    "format": "prettier --write --no-error-on-unmatched-pattern 'projects/**/*.{js,json}'",
+    "format:check": "prettier --check --no-error-on-unmatched-pattern 'projects/**/*.{js,json}'",
+    "lint": "eslint --no-error-on-unmatched-pattern 'projects/**/*.js'",
+    "lint:fix": "eslint --fix --no-error-on-unmatched-pattern 'projects/**/*.js'"
   },
   "lint-staged": {
     "projects/**/*.js": [

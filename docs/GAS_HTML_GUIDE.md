@@ -16,6 +16,7 @@ Apps Script 프로젝트에서 권장하는 HTML/CSS 코딩 스타일입니다.
 6. [다크모드 지원](#6-다크모드-지원)
 7. [실전 컴포넌트](#7-실전-컴포넌트)
 8. [베스트 프랙티스](#8-베스트-프랙티스)
+9. [인터랙티브 피드백 (권장)](#9-인터랙티브-피드백-권장)
 
 ---
 
@@ -330,6 +331,28 @@ function include(filename) {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 ```
 
+### ⚠️ iOS 입력 포커스 자동 줌 방지
+
+iOS Safari·카카오 인앱 등 WebKit 브라우저는 **`<input>`·`<textarea>`의 `font-size`가 16px 미만이면, 그 칸을 탭(포커스)할 때 자동으로 확대(zoom)**한다.
+→ 페이지가 살짝 넓어지며 **여백이 흔들리는** 것처럼 보인다 (위치마다 줌 정도가 달라 들쭉날쭉).
+
+```css
+/* ❌ 15px → 칸 탭하면 화면 확대 */
+input {
+  font-size: 15px;
+}
+
+/* ✅ 16px 이상 → 줌 안 일어남 */
+input,
+textarea {
+  font-size: 16px;
+}
+```
+
+- **편집 가능한 모든 칸**(text·password·search·textarea)에 16px 이상 적용
+- placeholder 폰트는 작아도 무관 (줌 판정은 입력칸 _본문_ `font-size` 기준)
+- 디자인상 더 작게 보이고 싶어도 **16px가 하한선** — 그 아래는 줌 발생
+
 ---
 
 ## 6. 다크모드 지원
@@ -577,6 +600,44 @@ function include(filename) {
 </div>
 ```
 
+### 결과 메시지 깜빡임(플래시) 효과
+
+상태 메시지가 갱신될 때 **잠깐 하이라이트로 번쩍**여 주목을 유도하는 패턴.
+
+#### ⚠️ CSS @keyframes 재발화는 불안정
+
+`class` 제거→추가 + reflow 로 keyframe 을 재시작하는 흔한 트릭은,
+**같은 메시지를 연속으로 띄울 때 재시작이 안 되는** 경우가 있다 (실측: GAS 웹앱에서 전혀 안 보임).
+
+```javascript
+// ❌ 불안정: keyframe 재발화 트릭
+el.classList.remove('flash');
+void el.offsetWidth; // reflow
+el.classList.add('flash'); // 가끔/특정 환경서 재시작 안 됨
+```
+
+#### ✅ 권장: JS inline transition
+
+배경을 **즉시 켜고(transition:none) → reflow 로 확정 → transition 으로 투명 페이드**.
+transition 은 reflow 후 속성 변경에 **항상 발화**하므로 매번 확실히 깜빡인다.
+
+```javascript
+function flash(el, msg) {
+  el.textContent = msg;
+  if (!msg) return;
+  el.style.transition = 'none';
+  el.style.background = 'rgba(184,134,11,0.6)'; // 즉시 하이라이트
+  el.style.borderRadius = '8px';
+  void el.offsetWidth; // reflow 로 금색 확정
+  el.style.transition = 'background 1.8s ease 0.3s'; // 0.3s 유지 후 1.8s 페이드
+  el.style.background = 'transparent';
+}
+```
+
+- `transition: background <duration> ease <delay>` — `delay` 로 "잠깐 유지 후 천천히 사라짐" 연출
+- 연속 호출해도 매번 깜빡임 (transition 재발화 보장)
+- `@keyframes` 불필요 → CSS 의존 없이 JS 만으로 동작
+
 ---
 
 ## 8. 베스트 프랙티스
@@ -735,6 +796,60 @@ function include(filename) {
   }
 </style>
 ```
+
+---
+
+## 9. 인터랙티브 피드백 (권장)
+
+> ⚠️ 이건 **규칙이 아니라 추천**이다. kingshot-coupon 에서 자리잡은 패턴이고 "이럴 땐 보통 이게
+> 잘 맞더라" 수준. 프로젝트 성격에 맞게 골라 쓰거나 다른 방식을 택해도 된다.
+
+기본값으로 깔아두면 편한 흐름:
+**터치 확인(press) → 중복 차단(작업중) → 진행(별도 영역) → 결과(맥락별)**
+
+### 9-1. 누름(press) — 거의 항상 추천
+
+터치엔 hover 가 없어서 "탭이 먹혔다"는 물리 확인이 중요하다. `button:active` 에 `translateY` +
+그림자 소멸 + 살짝 어둡게가 잘 먹힌다.
+
+```css
+button:active {
+  transform: translateY(3px); /* 바닥까지 눌림 */
+  box-shadow: none;
+  filter: brightness(0.9);
+}
+```
+
+- 주 액션은 강하게(예: 3px), 보조(칩 등)는 약하게(1px)로 **위계**를 줄 수도, 통일해도 무방.
+- 전역 `button:active` 로 깔고 **개별 클래스에서 약하게 덮어쓰지 않도록** 주의 — 의도치 않게
+  피드백이 약해진다(실제로 겪은 함정).
+
+### 9-2. 작업 중(서버 왕복) — `disabled` 추천
+
+서버 액션은 중복 클릭 = 중복 호출/쓰기라 위험. 응답까지 `disabled`(칩이면 `opacity`↓ +
+`pointer-events:none`)로 막으면 "도는 중"도 함께 전달된다.
+
+### 9-3. 진행 표시(⏳) — 버튼 _위_ 보다 별도 영역 추천
+
+`⏳ 처리 중…` 같은 로딩 텍스트는 **버튼 라벨을 흔들기보다 별도 결과/상태 영역**에 두는 게 깔끔하다
+(버튼은 `disabled` 로 충분). 버튼 라벨은 정체성이라 안정적인 편이 좋다.
+→ 단, 결과 영역이 _없는_ 작은 즉시액션 버튼이면 9-4 처럼 버튼 텍스트를 잠깐 바꿔도 된다.
+
+### 9-4. 완료 확인 — 맥락별
+
+- **결과 영역 있음**: 거기에 성공/실패 메시지.
+- **결과 영역 없는 즉시액션**(복사·다운로드 등): 버튼 텍스트를 잠깐 `✓ …`(예: `✓ Copied`)로 바꿨다
+  복원. 그 자리가 유일한 확인 지점이라 잘 맞는다. (로딩 ⏳ 와 구분 — 이건 "끝났다" 신호)
+- **상태 토글(on/off)**: 낙관적(클릭 즉시 반영) + 실패 시 원복이 보통 가장 자연스럽다.
+
+### 9-5. 비가역/위험 — 한 단계 더
+
+삭제처럼 되돌리기 어려운 동작은 `confirm()` 한 단계를 두는 편이 안전하다.
+
+### 요지
+
+> **꼭 이대로 해야 하는 건 아니다.** 위 흐름을 _기본 추천_ 으로 깔되, 프로젝트 톤·규모에 맞게
+> 가감하면 된다. 특정 방식을 선호하면 그걸로 가도 무방 — 일관성만 유지하면 충분하다.
 
 ---
 
