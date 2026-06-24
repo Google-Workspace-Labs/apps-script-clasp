@@ -230,6 +230,53 @@ const SLACK_MSG = {
     md_autosync_title: '🔄 자동 동기화',
     md_autosync_on: (d) => `ON — ${d.hours}시간마다 자동 확인합니다.`,
     md_autosync_off: 'OFF 되었습니다.',
+    // ── 정기 보고서 (Report.js) — 배포자 언어 ──
+    rp_period_weekly: '주간',
+    rp_period_biweekly: '격주',
+    rp_period_monthly: '월간',
+    rp_title: (d) => `📊 Kingshot ${d.period} 보고서`,
+    rp_range: (d) => `📅 ${d.range}`,
+    rp_new_codes: (d) => `🆕 신규 쿠폰: ${d.codes}${d.more}`,
+    rp_f_coupons: '🎟 쿠폰',
+    rp_v_coupons: (d) => `활성 ${d.active} · 신규 ${d.neu} · 만료 ${d.expired}`,
+    rp_f_users: '👤 유저',
+    rp_v_users: (d) => `${d.total}명 (활성 ${d.active}) · 신규 ${d.neu}`,
+    rp_f_delivery: '📦 전달 현황',
+    rp_v_delivery: (d) =>
+      d.combos === 0
+        ? '— (활성 유저·쿠폰 없음)'
+        : d.pending === 0
+          ? `✅ 전부 전달 (${d.combos}조합)`
+          : `⚠️ 미전달 ${d.pending} / ${d.combos}조합`,
+    rp_f_sync: '🔄 자동 동기화',
+    rp_v_sync: (d) => `${d.on ? 'ON' : 'OFF'} · 마지막 ${d.last} · 연속실패 ${d.streak}`,
+    rp_f_last_batch: '🗓 마지막 배치',
+    rp_footer: '정기 운영 보고서 · 현재 상태 기준',
+    rp_email_subj: (d) => `[Kingshot] ${d.period} 보고서 — ${d.date}`,
+    rp_email_body: (d) =>
+      `Kingshot ${d.period} 운영 보고서\n기간: ${d.range}\n\n` +
+      `🎟 쿠폰: 활성 ${d.cpnActive} · 신규 ${d.cpnNew} · 만료 ${d.cpnExpired}\n` +
+      `👤 유저: 총 ${d.usersTotal} · 활성 ${d.usersActive} · 신규 ${d.usersNew}\n` +
+      `📦 전달 현황: ${d.combos === 0 ? '대상 없음' : d.pending === 0 ? `전부 전달 (${d.combos}조합)` : `미전달 ${d.pending} / ${d.combos}조합`}\n` +
+      `🔄 자동 동기화: ${d.syncOn} · 마지막 ${d.syncLast}\n` +
+      `🗓 마지막 배치: ${d.lastBatch}\n`,
+    rp_set_t: '📊 정기 보고서 설정',
+    rp_set_d: (d) =>
+      `정기 보고서: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
+      (d.on ? `\n🗓 ${d.period} 주기로 발송` : ''),
+    rp_period_t: '📊 보고서 주기 변경',
+    rp_period_d: (d) => `🗓 **${d.prev} → ${d.next}**`,
+    mn_report: '📊 보고서',
+    mn_report_now: '지금 보고서 (1회)',
+    mn_report_weekly: '정기 보고서: 매주',
+    mn_report_biweekly: '정기 보고서: 격주',
+    mn_report_monthly: '정기 보고서: 매월',
+    mn_report_off: '정기 보고서 끄기',
+    md_report_title: '📊 정기 보고서',
+    md_report_done: '✅ 보고서를 발송했습니다 (Slack/메일 설정에 따라).',
+    md_report_fail: (d) => `보고서 발송 실패: ${d.reason}`,
+    md_report_on: (d) => `ON — ${d.period} 주기로 자동 발송합니다.`,
+    md_report_off: 'OFF 되었습니다.',
   },
   en: {
     user_reg_t: '👤 User registered',
@@ -413,5 +460,52 @@ const SLACK_MSG = {
     md_autosync_title: '🔄 Auto sync',
     md_autosync_on: (d) => `ON — checks automatically every ${d.hours}h.`,
     md_autosync_off: 'Turned OFF.',
+    // ── Periodic report (Report.js) — deployer language ──
+    rp_period_weekly: 'weekly',
+    rp_period_biweekly: 'biweekly',
+    rp_period_monthly: 'monthly',
+    rp_title: (d) => `📊 Kingshot ${d.period} report`,
+    rp_range: (d) => `📅 ${d.range}`,
+    rp_new_codes: (d) => `🆕 New coupons: ${d.codes}${d.more}`,
+    rp_f_coupons: '🎟 Coupons',
+    rp_v_coupons: (d) => `active ${d.active} · new ${d.neu} · expired ${d.expired}`,
+    rp_f_users: '👤 Users',
+    rp_v_users: (d) => `${d.total} (active ${d.active}) · new ${d.neu}`,
+    rp_f_delivery: '📦 Delivery',
+    rp_v_delivery: (d) =>
+      d.combos === 0
+        ? '— (no active users·coupons)'
+        : d.pending === 0
+          ? `✅ All delivered (${d.combos} combos)`
+          : `⚠️ Pending ${d.pending} / ${d.combos} combos`,
+    rp_f_sync: '🔄 Auto-sync',
+    rp_v_sync: (d) => `${d.on ? 'ON' : 'OFF'} · last ${d.last} · fails ${d.streak}`,
+    rp_f_last_batch: '🗓 Last batch',
+    rp_footer: 'Periodic ops report · current-state snapshot',
+    rp_email_subj: (d) => `[Kingshot] ${d.period} report — ${d.date}`,
+    rp_email_body: (d) =>
+      `Kingshot ${d.period} ops report\nPeriod: ${d.range}\n\n` +
+      `🎟 Coupons: active ${d.cpnActive} · new ${d.cpnNew} · expired ${d.cpnExpired}\n` +
+      `👤 Users: total ${d.usersTotal} · active ${d.usersActive} · new ${d.usersNew}\n` +
+      `📦 Delivery: ${d.combos === 0 ? 'no targets' : d.pending === 0 ? `all delivered (${d.combos} combos)` : `pending ${d.pending} / ${d.combos} combos`}\n` +
+      `🔄 Auto-sync: ${d.syncOn} · last ${d.syncLast}\n` +
+      `🗓 Last batch: ${d.lastBatch}\n`,
+    rp_set_t: '📊 Periodic report settings',
+    rp_set_d: (d) =>
+      `Periodic report: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
+      (d.on ? `\n🗓 sent on a ${d.period} cycle` : ''),
+    rp_period_t: '📊 Report cycle changed',
+    rp_period_d: (d) => `🗓 **${d.prev} → ${d.next}**`,
+    mn_report: '📊 Report',
+    mn_report_now: 'Report now (once)',
+    mn_report_weekly: 'Periodic report: weekly',
+    mn_report_biweekly: 'Periodic report: biweekly',
+    mn_report_monthly: 'Periodic report: monthly',
+    mn_report_off: 'Periodic report: OFF',
+    md_report_title: '📊 Periodic report',
+    md_report_done: '✅ Report sent (per your Slack/email settings).',
+    md_report_fail: (d) => `Report failed: ${d.reason}`,
+    md_report_on: (d) => `ON — auto-sent on a ${d.period} cycle.`,
+    md_report_off: 'Turned OFF.',
   },
 };

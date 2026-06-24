@@ -116,6 +116,15 @@ function onOpen() {
     .addItem(nt('mn_sync_now', null, ml), 'menuRunSyncNow')
     .addItem(nt('mn_sync_toggle', null, ml), 'menuToggleAutoSync');
 
+  const reportMenu = ui
+    .createMenu(nt('mn_report', null, ml))
+    .addItem(nt('mn_report_now', null, ml), 'menuRunReportNow')
+    .addSeparator()
+    .addItem(nt('mn_report_weekly', null, ml), 'menuSetReportWeekly')
+    .addItem(nt('mn_report_biweekly', null, ml), 'menuSetReportBiweekly')
+    .addItem(nt('mn_report_monthly', null, ml), 'menuSetReportMonthly')
+    .addItem(nt('mn_report_off', null, ml), 'menuReportOff');
+
   const diagMenu = ui
     .createMenu(nt('mn_diag', null, ml))
     .addItem(nt('mn_diagnose', null, ml), 'diagnoseDedup');
@@ -134,6 +143,7 @@ function onOpen() {
     .addSubMenu(runMenu)
     .addSubMenu(manageMenu)
     .addSubMenu(syncMenu)
+    .addSubMenu(reportMenu)
     .addSubMenu(diagMenu)
     .addToUi();
 }

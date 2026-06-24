@@ -1,4 +1,4 @@
-/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, refreshCurrentNickname_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, refreshCurrentNickname_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt, fmtReportAt_, ensureReportTrigger_ */
 
 /**
  * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
@@ -398,6 +398,7 @@ function apiToggleCoupon(code, password) {
 function apiListManage() {
   return safeApi_('apiListManage', () => {
     const config = getConfig();
+    ensureReportTrigger_(); // 기본 ON self-heal — 트리거 없으면 1회 설치(멱등, 실패 무시)
     const usersRaw = readUsers_();
     const couponsRaw = readCoupons_();
 
@@ -451,11 +452,16 @@ function apiListManage() {
         coupon: !!config.notify.coupon,
         settings: !!config.notify.settings,
         sync: !!config.notify.sync,
+        report: !!config.notify.report,
       },
       // 외부 쿠폰 소스 자동 동기화 상태 (Sync.js)
       autoSyncEnabled: props.getProperty('AUTO_SYNC_ENABLED') === 'true',
       lastSync: props.getProperty('LAST_SYNC_AT') || '',
       lastSyncResult: props.getProperty('LAST_SYNC_RESULT') || '',
+      // 정기 보고서 상태 (Report.js). 기본 ON(opt-out): 'false' 만 OFF. lastReport ISO → 표시용 KST.
+      reportEnabled: props.getProperty('REPORT_ENABLED') !== 'false',
+      reportPeriod: props.getProperty('REPORT_PERIOD') || 'weekly',
+      lastReport: fmtReportAt_(props.getProperty('LAST_REPORT_AT')),
     };
   });
 }
@@ -587,7 +593,7 @@ function apiSetSlackLang(lang, password) {
 }
 
 /** 알림 카테고리 6개 (batch/schedule/user/coupon/settings/sync) 의 개별 토글 */
-const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings', 'sync'];
+const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings', 'sync', 'report'];
 const NOTIFY_PROP_KEYS = {
   batch: 'NOTIFY_BATCH',
   schedule: 'NOTIFY_SCHEDULE',
@@ -595,6 +601,7 @@ const NOTIFY_PROP_KEYS = {
   coupon: 'NOTIFY_COUPON',
   settings: 'NOTIFY_SETTINGS',
   sync: 'NOTIFY_SYNC',
+  report: 'NOTIFY_REPORT',
 };
 
 /** 알림 카테고리 ON/OFF (비밀번호 필요). */

@@ -10,14 +10,17 @@
  *   - KINGSHOT_VERIFY_PLAYER : 'false' 로 설정하면 fid 사전 로그인 검증 생략
  *   - KINGSHOT_VALIDATE_FID  : 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저로 검증)
  *   - SLACK_WEBHOOK_URL      : 등록/배치 결과를 보낼 Slack Incoming Webhook URL
- *   - NOTIFY_BATCH/SCHEDULE/USER/COUPON/SETTINGS/SYNC : 카테고리별 알림 ON/OFF
- *     ('false' 면 OFF, 그 외 ON. 6개 모두 기본 ON — opt-out 정책)
+ *   - NOTIFY_BATCH/SCHEDULE/USER/COUPON/SETTINGS/SYNC/REPORT : 카테고리별 알림 ON/OFF
+ *     ('false' 면 OFF, 그 외 ON. 7개 모두 기본 ON — opt-out 정책)
  *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 200, 0 이면 무제한)
  *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔)
  *   - AUTO_SYNC_ENABLED      : 외부 쿠폰 소스 자동 동기화 ON/OFF ('true' 면 ON, 기본 OFF) — Sync.js
  *   - COUPON_SOURCE_URL      : 주 동기화 소스 URL (미설정 시 Sync.js 기본 = ks-rewards)
  *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 Sync.js 기본 = kingshotdata; 주 실패 시)
  *   - SYNC_FAIL_AUTOOFF_STREAK : 모든 소스 연속 실패 N회 시 자동 동기화 OFF (미설정 시 168=1주일@1h, 0이면 끔) — Sync.js
+ *   - REPORT_ENABLED         : 정기 보고서 ON/OFF ('false' 면 OFF, 미설정/그외 = 기본 ON) — Report.js
+ *   - REPORT_PERIOD          : 보고서 주기 'weekly'(기본) | 'biweekly' | 'monthly' — Report.js
+ *   - REPORT_EMAIL           : 보고서 메일 수신자(쉼표구분). 비우면 Slack 만 — Report.js
  */
 
 // 운영사가 salt 를 교체하면 여기 또는 Script Property(KINGSHOT_SALT)만 수정하면 됩니다.
@@ -101,7 +104,7 @@ function getConfig() {
     menuLang: props.getProperty('MENU_LANG') === 'ko' ? 'ko' : 'en',
 
     // 알림 카테고리 — 채널(Slack)이 ON 이어도 해당 카테고리 OFF 면 전송 X.
-    // 6개 카테고리 모두 기본 ON (opt-out 정책) — 처음 전부 켜놓고 노이즈 느끼면 관리 UI 에서 끔.
+    // 7개 카테고리 모두 기본 ON (opt-out 정책) — 처음 전부 켜놓고 노이즈 느끼면 관리 UI 에서 끔.
     notify: {
       batch: props.getProperty('NOTIFY_BATCH') !== 'false',
       schedule: props.getProperty('NOTIFY_SCHEDULE') !== 'false',
@@ -109,6 +112,7 @@ function getConfig() {
       coupon: props.getProperty('NOTIFY_COUPON') !== 'false',
       settings: props.getProperty('NOTIFY_SETTINGS') !== 'false',
       sync: props.getProperty('NOTIFY_SYNC') !== 'false',
+      report: props.getProperty('NOTIFY_REPORT') !== 'false',
     },
   };
   return __configCache;

@@ -248,6 +248,27 @@
         flex: 0 0 auto;
         padding: 14px 18px;
       }
+      /* 보고서 주기 select — native select 가 버튼 radius 를 못 받아 각지므로 직접 스타일(버튼과 통일) */
+      .sselect {
+        appearance: none;
+        -webkit-appearance: none;
+        flex: 1 1 auto;
+        border: 0;
+        border-radius: 12px;
+        color: #fff;
+        font-weight: 800;
+        font-size: 14px;
+        padding: 0 30px 0 14px;
+        box-shadow: 0 3px 0 rgba(60, 45, 20, 0.35);
+        cursor: pointer;
+        background:
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4.5l4 4 4-4' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+            right 10px center / 12px no-repeat,
+          linear-gradient(180deg, #9a8a6a 0%, #7a6a4c 100%);
+      }
+      .sselect option {
+        color: #2a2a2a;
+      }
       .srow-head {
         display: flex;
         justify-content: space-between;
@@ -931,6 +952,18 @@
             </div>
             <div class="macc">
               <div class="macc-h" onclick="toggleAcc(this)">
+                <span data-i18n="man_t9">📊 정기 보고서</span><span class="macc-c">▼</span>
+              </div>
+              <div class="macc-b" data-i18n-html="man_b9" style="display: none">
+                쿠폰·유저 현황과 전달 상태를 <b>정기적으로 요약해 Slack 으로</b> 보내줘요. (기본 ON)<br />•
+                <b>주기 선택</b>: 매주 · 격주 · 매월 중 고르세요 (관리 패널 드롭다운 또는 시트 메뉴 📊
+                보고서)<br />• <b>지금 보고서</b>: 미리보기 1통을 바로 받아볼 수 있어요(정기 일정엔 영향
+                없음)<br />• <b>안전해요</b>: 읽기만 해서 등록·동기화 같은 기존 기능엔 전혀 영향 없음<br />•
+                <b>전달 현황</b>: 활성 유저 모두가 활성 쿠폰을 받았으면 “전부 전달”, 아니면 남은 건수를 보여줘요
+              </div>
+            </div>
+            <div class="macc">
+              <div class="macc-h" onclick="toggleAcc(this)">
                 <span data-i18n="man_t6">📋 목록 관리 (유저·쿠폰)</span><span class="macc-c">▼</span>
               </div>
               <div class="macc-b" data-i18n-html="man_b6" style="display: none">
@@ -1028,6 +1061,48 @@
           </div>
           <div id="syncLast" class="shint" style="margin-top: 4px" data-i18n="sync_idle">
             아직 실행 안 됨
+          </div>
+
+          <!-- 📊 정기 보고서 (옵션 · 기본 OFF) -->
+          <div class="srow-head" style="margin-top: 14px">
+            <span class="slabel" style="margin: 0">
+              <span data-i18n="m_report">📊 정기 보고서</span>
+              <span class="shint" data-i18n="m_report_hint">현황 요약 · 정기 발송</span>
+            </span>
+            <label class="switch">
+              <input id="reportSwitch" type="checkbox" onchange="toggleReport(this)" />
+              <span class="track"></span>
+            </label>
+          </div>
+          <div class="row" style="margin-top: 6px; gap: 6px; align-items: stretch">
+            <select id="reportPeriod" class="sselect" onchange="stageReportPeriod()">
+              <option value="weekly" data-i18n="rp_opt_weekly">매주 발송</option>
+              <option value="biweekly" data-i18n="rp_opt_biweekly">격주 발송</option>
+              <option value="monthly" data-i18n="rp_opt_monthly">매월 발송</option>
+            </select>
+            <button
+              class="btn-sec sbtn"
+              id="reportApplyBtn"
+              data-i18n="btn_report_apply"
+              onclick="applyReportPeriod()"
+              disabled
+            >
+              적용
+            </button>
+          </div>
+          <div class="row" style="margin-top: 6px">
+            <button
+              class="btn-sec sbtn"
+              style="width: 100%"
+              id="reportNowBtn"
+              data-i18n="btn_report_now"
+              onclick="runReportNow()"
+            >
+              지금 보고서 (1회)
+            </button>
+          </div>
+          <div id="reportLast" class="shint" style="margin-top: 4px" data-i18n="report_idle">
+            아직 발송 안 됨
           </div>
 
           <!-- 💬 Slack 알림 -->
@@ -2027,6 +2102,16 @@
         $('syncLast').textContent = res.lastSync
           ? t('last_sync', res.lastSync, fmtSyncResult_(res.lastSyncResult))
           : t('sync_idle');
+        // 정기 보고서 상태
+        $('reportSwitch').checked = !!res.reportEnabled;
+        if (res.reportPeriod) {
+          $('reportPeriod').value = res.reportPeriod;
+          $('reportPeriod').setAttribute('data-prev', res.reportPeriod);
+        }
+        $('reportApplyBtn').disabled = true; // 저장값과 동기화 → 적용 버튼 비활성
+        $('reportLast').textContent = res.lastReport
+          ? t('last_report', res.lastReport)
+          : t('report_idle');
         // 알림 카테고리 토글 렌더
         renderNotifyRows(res.notify || {});
       }
@@ -2085,6 +2170,95 @@
           .apiRunSyncNow(pw);
       }
 
+      // ── 정기 보고서 (Report.js) ──
+      function toggleReport(cb) {
+        const pw = requirePw();
+        if (!pw) {
+          cb.checked = !cb.checked;
+          return;
+        }
+        const period = $('reportPeriod').value;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (!res || !res.ok) {
+              cb.checked = !cb.checked;
+            }
+            mgFlash(srvMsg_(res));
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            cb.checked = !cb.checked;
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiSetReport(cb.checked, period, pw);
+      }
+
+      // 주기 선택은 _고르기만_(서버 호출 X) → [주기 적용] 버튼이 켜짐. 눌러야 1회 반영.
+      // 네이티브 select 는 선택 간격이 길어 디바운스로 안 합쳐지므로, 명시적 적용이 가장 명확
+      // (매주→격주→월간 맘껏 훑어도 적용 1번 = 알림 1통).
+      function stageReportPeriod() {
+        const sel = $('reportPeriod');
+        const changed = sel.value !== (sel.getAttribute('data-prev') || 'weekly');
+        $('reportApplyBtn').disabled = !changed;
+      }
+
+      // [주기 적용] 클릭 — 현재 ON/OFF 유지한 채 선택한 주기로 1회 반영(ON 이면 트리거 재설치).
+      function applyReportPeriod() {
+        const sel = $('reportPeriod');
+        const prev = sel.getAttribute('data-prev') || 'weekly';
+        if (sel.value === prev) {
+          $('reportApplyBtn').disabled = true;
+          return;
+        }
+        const pw = requirePw();
+        if (!pw) {
+          return;
+        }
+        const enabled = $('reportSwitch').checked;
+        google.script.run
+          .withSuccessHandler(function (res) {
+            if (res && res.ok) {
+              sel.setAttribute('data-prev', sel.value);
+              $('reportApplyBtn').disabled = true;
+            } else {
+              sel.value = prev;
+            }
+            mgFlash(srvMsg_(res));
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            sel.value = prev;
+            mgFlash('⚠️ ' + errMsg(e));
+          })
+          .apiSetReport(enabled, sel.value, pw);
+      }
+
+      function runReportNow() {
+        const pw = requirePw();
+        if (!pw) return;
+        const btn = $('reportNowBtn');
+        const label = t('btn_report_now');
+        btn.disabled = true;
+        btn.textContent = t('btn_reporting');
+        const restore = function () {
+          btn.disabled = false;
+          btn.textContent = label;
+        };
+        mgFlash(t('reporting'));
+        google.script.run
+          .withSuccessHandler(function (res) {
+            mgFlash(res && res.ok ? t('report_done') : srvMsg_(res));
+            btn.textContent = t('btn_reported');
+            setTimeout(restore, 1500);
+            loadManage();
+          })
+          .withFailureHandler(function (e) {
+            mgFlash('⚠️ ' + errMsg(e));
+            restore();
+          })
+          .apiRunReportNow(pw);
+      }
+
       // 존재하지 않는(오타) 코드 — 목록에선 숨기고 개수 칩 + 정리 버튼만 표시
       function renderInvalidChip(n) {
         const el = $('invalidChip');
@@ -2126,6 +2300,7 @@
         { key: 'coupon' },
         { key: 'settings' },
         { key: 'sync' },
+        { key: 'report' },
       ];
 
       function renderNotifyRows(notify) {
