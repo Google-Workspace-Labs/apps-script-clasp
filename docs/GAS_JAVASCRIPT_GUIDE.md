@@ -766,6 +766,32 @@ function getConfig() {
 }
 ```
 
+#### ⚡ 성능 — 여러 개 읽을 땐 `getProperties()` 한 번으로
+
+`getProperty('X')` 는 **호출마다 백엔드 왕복**이다. 위 `getConfig` 처럼 여러 키를 개별로 읽으면 키 수만큼
+왕복이 쌓인다(실측: ~17개 키 → cfg 구간 최대 1100ms+, 콜드 컨테이너에선 더 변동). 웹앱 관리 패널 로드처럼
+**자주·동기로** 도는 경로면 체감 지연이 크다.
+
+→ **`getProperties()` 로 전체를 한 번에 객체로 받아** 거기서 읽으면 왕복이 1회로 준다.
+
+```javascript
+// ❌ N왕복 — 키마다 백엔드 호출
+const props = PropertiesService.getScriptProperties();
+const a = props.getProperty('A');
+const b = props.getProperty('B');  // ... ×N
+
+// ✅ 1왕복 — 전체를 객체로 받아서 읽기
+const props = PropertiesService.getScriptProperties().getProperties();
+const a = props.A || DEFAULT;      // 미설정 키는 undefined
+const b = props.B !== 'false';     // opt-out (기본 ON)
+const n = parseInt(props.C, 10);   // || · !== · === · parseInt 모두 null/undefined 동일 작동
+```
+
+- **의미 동일(사이드이펙트 0)**: `getProperty` 는 미설정 시 `null`, `getProperties()[k]` 는 `undefined`.
+  `|| 기본값` · `!== 'false'`(opt-out) · `=== 'true'`(opt-in) · `parseInt(...)` 패턴이 둘 다 똑같이 동작.
+- **언제**: 한 함수에서 키 3개 이상 읽으면 배칭이 유리(요청 단위 캐시까지 더하면 함수 전체가 1왕복). 1~2개면 무방.
+- **⚠️ 주의**: `getProperty('X') === null` 로 "미설정"을 _정확히_ 구분하던 곳은 그대로 둘 것 — 객체 접근은 `undefined` 라 `=== null` 이 깨진다.
+
 #### PropertiesService 종류
 
 | 타입 | 용도 | 범위 |
