@@ -1,4 +1,4 @@
-/* global getConfig, readUsers_, readCoupons_, getProcessedSet_, notify_, NOTIFY_COLORS, nt, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, MailApp */
+/* global getConfig, readUsers_, readCoupons_, getProcessedSet_, notify_, NOTIFY_COLORS, nt, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, MailApp, fmtTsLang_ */
 
 /**
  * Kingshot Coupon — 정기 보고서 (digest, 옵션 레이어)
@@ -38,6 +38,7 @@
  *   - REPORT_PERIOD    : 'weekly'(기본) | 'biweekly' | 'monthly'
  *   - REPORT_EMAIL     : 메일 수신자(쉼표구분). 비우면 Slack 만.
  *   - LAST_REPORT_AT   : 마지막 정기 보고 시각(ISO) — 다음 윈도우 시작 경계
+ *   - REPORT_TRIGGER_ENSURED : '1' 이면 self-heal 가 트리거 보장 완료(내부 자동 관리, 게이트용)
  */
 
 const REPORT_TRIGGER_HANDLER = 'reportScheduled';
@@ -263,9 +264,9 @@ function aggDelivery_() {
 // 임베드 / 메일 본문 빌더
 // ============================================================
 
-/** 보고서 Slack 임베드. 색상은 중립(회색) — 보고는 경보가 아님. */
+/** 보고서 Slack 임베드. 색상은 중립(회색). 시각은 Slack 언어 기준(ko=KST·en=UTC, 라벨, fmtTsLang_). */
 function buildReportEmbed_(data, period, windowStart, now) {
-  const range = `${fmtKst_(windowStart)} ~ ${fmtKst_(now)}`;
+  const range = `${fmtTsLang_(windowStart)} ~ ${fmtTsLang_(now)}`;
   const periodLabel = nt(`rp_period_${period}`);
 
   let description = nt('rp_range', { range });
@@ -309,38 +310,20 @@ function buildReportEmbed_(data, period, windowStart, now) {
         name: nt('rp_f_sync'),
         value: nt('rp_v_sync', {
           on: data.sync.enabled,
-          last: data.sync.lastAt || '—',
+          last: data.sync.lastAt ? fmtTsLang_(data.sync.lastAt) : '—',
           streak: data.sync.failStreak,
         }),
         inline: true,
       },
       {
         name: nt('rp_f_last_batch'),
-        value: data.lastBatchAt || '—',
+        value: data.lastBatchAt ? fmtTsLang_(data.lastBatchAt) : '—',
         inline: true,
       },
     ],
     footer: { text: nt('rp_footer') },
     timestamp: now.toISOString(),
   };
-}
-
-/** KST 'MM-dd HH:mm' 포맷 */
-function fmtKst_(date) {
-  return Utilities.formatDate(date, 'Asia/Seoul', 'MM-dd HH:mm');
-}
-
-/** LAST_REPORT_AT(ISO) → 표시용 KST 'yyyy-MM-dd HH:mm'. 없거나 파싱 실패 시 '' (관리 UI 가 사용). */
-function fmtReportAt_(iso) {
-  if (!iso) {
-    return '';
-  }
-  try {
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, 'Asia/Seoul', 'yyyy-MM-dd HH:mm');
-  } catch (e) {
-    return '';
-  }
 }
 
 /**
@@ -369,7 +352,7 @@ function maybeSendReportEmail_(data, period, windowStart, now) {
       return 0;
     }
     const periodLabel = nt(`rp_period_${period}`);
-    const subject = nt('rp_email_subj', { period: periodLabel, date: fmtKst_(now) });
+    const subject = nt('rp_email_subj', { period: periodLabel, date: fmtTsLang_(now) });
     const body = reportEmailBody_(data, periodLabel, windowStart, now);
     MailApp.sendEmail({ to: recipients.join(','), subject, body });
     return recipients.length;
@@ -383,7 +366,7 @@ function maybeSendReportEmail_(data, period, windowStart, now) {
 function reportEmailBody_(data, periodLabel, windowStart, now) {
   return nt('rp_email_body', {
     period: periodLabel,
-    range: `${fmtKst_(windowStart)} ~ ${fmtKst_(now)}`,
+    range: `${fmtTsLang_(windowStart)} ~ ${fmtTsLang_(now)}`,
     cpnActive: data.coupons.active,
     cpnNew: data.coupons.neu,
     cpnExpired: data.coupons.expired,
@@ -393,8 +376,8 @@ function reportEmailBody_(data, periodLabel, windowStart, now) {
     pending: data.delivery.pending,
     combos: data.delivery.combos,
     syncOn: data.sync.enabled ? 'ON' : 'OFF',
-    syncLast: data.sync.lastAt || '—',
-    lastBatch: data.lastBatchAt || '—',
+    syncLast: data.sync.lastAt ? fmtTsLang_(data.sync.lastAt) : '—',
+    lastBatch: data.lastBatchAt ? fmtTsLang_(data.lastBatchAt) : '—',
   });
 }
 
@@ -414,31 +397,45 @@ function installReportTrigger_() {
   } else {
     builder.onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(REPORT_HOUR).create();
   }
+  // 트리거 확실히 존재 → self-heal 게이트 도장. 이후 ensureReportTrigger_ 가 트리거 열거를 생략한다.
+  PropertiesService.getScriptProperties().setProperty('REPORT_TRIGGER_ENSURED', '1');
 }
 
 /** 보고서 트리거 제거(자기 핸들러만 — 배치/동기화 트리거 안 건드림) */
 function removeReportTrigger_() {
   removeTriggers_(REPORT_TRIGGER_HANDLER);
+  // 트리거 없어짐 → 도장 제거. 나중에 다시 켜지면 self-heal 가 재확인/재설치하도록.
+  PropertiesService.getScriptProperties().deleteProperty('REPORT_TRIGGER_ENSURED');
 }
 
 /**
  * 기본 ON 보장(self-heal). REPORT_ENABLED 가 명시적 'false' 가 아니면(=기본 ON) 보고서 트리거가
  * 없을 때 한 번 설치한다. 트리거는 시트 카피 시 복사되지 않으므로(GAS 사양) "기본 ON"을 실제 발송까지
- * 잇는 다리. 관리 패널 로드(apiGetManage)에서 호출 — 멱등(이미 있으면 noop), 실패는 조용히 무시(옵션 레이어).
+ * 잇는 다리. 관리 패널 로드(apiListManage)에서 호출 — 실패는 조용히 무시(옵션 레이어).
+ *
+ * ⚡ once-flag 게이트: 한 번 보장하면 REPORT_TRIGGER_ENSURED='1' 도장을 찍고, 이후엔 도장만 보고 즉시
+ *   통과 → 매 로드(익명 포함)마다 ScriptApp.getProjectTriggers() 를 열거하던 낭비 제거. 무거운 열거는
+ *   최초/카피본(Property 미복사)에서만 1회. install/remove 가 도장을 set/clear 하므로 상태와 항상 일치.
  */
 function ensureReportTrigger_() {
   try {
-    if (PropertiesService.getScriptProperties().getProperty('REPORT_ENABLED') === 'false') {
-      return;
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('REPORT_ENABLED') === 'false') {
+      return; // 명시적 OFF — 손대지 않음
+    }
+    if (props.getProperty('REPORT_TRIGGER_ENSURED') === '1') {
+      return; // 이미 보장됨 — 트리거 열거 생략(최적화 핵심)
     }
     const exists = ScriptApp.getProjectTriggers().some(
       (t) => t.getHandlerFunction() === REPORT_TRIGGER_HANDLER,
     );
     if (!exists) {
-      installReportTrigger_();
+      installReportTrigger_(); // 내부에서 도장 set
+    } else {
+      props.setProperty('REPORT_TRIGGER_ENSURED', '1'); // 이미 있었으면 여기서 도장
     }
   } catch (e) {
-    // 트리거 보장 실패는 무시 — 보고서는 옵션 레이어, 본체 무관
+    // 트리거 보장 실패는 무시 — 보고서는 옵션 레이어, 본체 무관. 도장 안 찍혀 다음 로드에 재시도.
   }
 }
 

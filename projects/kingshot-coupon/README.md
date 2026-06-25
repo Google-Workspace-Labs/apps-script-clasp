@@ -16,6 +16,8 @@ API 직접 호출, 브라우저 자동화/OCR 없음)로 다중 유저에 자동
 | `Registration.js` | 웹앱 (`doGet`/api\*), 관리 액션 (등록·토글·삭제·TTL·Slack 설정)                      |
 | `Notify.js`       | Slack 알림 (`notify_` dispatcher · 카테고리 게이트), 배치 트리거 예약                |
 | `Sync.js`         | 외부 쿠폰 소스 자동 동기화 (옵션 레이어 · 기본 OFF · 1h 트리거 · 전부 try/catch)     |
+| `Report.js`       | 정기 운영 보고서 (옵션 레이어 · 기본 ON · 주간/격주/월간 · read-only 집계 · 격리)    |
+| `Time.js`         | 타임스탬프 단일 원천(UTC ISO) 헬퍼 — `tsNow_`/`tsParse_`/`fmtTsLang_`                |
 | `index.html`      | 웹 UI (등록·관리, 모바일 대응, 토글 슬라이더, 도움말 프롬프트)                       |
 
 ## 시트 구조
@@ -119,10 +121,10 @@ container-bound 스크립트 (스프레드시트에 연결).
    leftmost 에 onboarding 가이드 탭 생성 후 활성 상태로 두고 공유
 6. (선택) Script Properties 설정 — 아래 참고
 
-## 메뉴 (시트) — `👑 Kingshot Bot` 하위 5그룹
+## 메뉴 (시트) — `👑 Kingshot Bot` 하위 6그룹
 
 > 그룹 라벨은 `🌐 Language` 설정 따라 EN/KO 로 바뀜(**기본 EN**). 아래 표는 한국어 기준 —
-> EN 은 `▶ Run` · `🛠 Admin` · `🔄 Sync` · `🔍 Diagnostics` · `🚀 Setup`.
+> EN 은 `🚀 Setup` · `▶ Run` · `🛠 Admin` · `🔄 Sync` · `📊 Report` · `🔍 Diagnostics`.
 
 | 그룹      | 항목                          | 동작                                                        |
 | --------- | ----------------------------- | ----------------------------------------------------------- |
@@ -138,6 +140,9 @@ container-bound 스크립트 (스프레드시트에 연결).
 |           | Clear System Logs             | `system_logs` 비우기                                        |
 | 🔄 동기화 | 지금 동기화 (1회)             | 외부 소스 즉시 1회 동기화 (테스트·즉시 반영)                |
 |           | 자동 동기화 ON/OFF            | 매시간 자동 동기화 토글 (트리거 설치/제거)                  |
+| 📊 보고서 | 지금 보고서 (1회)             | 미리보기 1통 즉시 발송 (정기 일정 영향 없음)                |
+|           | 정기 보고서: 매주/격주/매월   | 주기 설정 + ON (트리거 설치)                                |
+|           | 정기 보고서 끄기              | OFF (트리거 제거)                                           |
 | 🔍 진단   | Diagnose Dedup                | logs 시트 dedup 누수 진단 (strict/case/trim/type 변형 비교) |
 
 ## 웹 UI (`/exec`)
@@ -153,18 +158,19 @@ container-bound 스크립트 (스프레드시트에 연결).
   - **캐시 히트(이미 등록 또는 죽은 것으로 확인됨)** → 즉시 사유별 메시지 (API 0회)
 - **🛠 관리** — 기본 열림(목록은 비밀번호 없이 조회), **변경/삭제·즉시 실행만 비밀번호**(접속 기기의 오늘 날짜 MMDD, any-timezone)
   - 🔑 비밀번호 입력 (4자리 마스킹)
-  - ⏳ 쿠폰 자동만료(TTL) 일수 설정·저장
+  - ⏳ 쿠폰 자동만료(TTL) 일수 설정·`저장` (값이 저장값과 같으면 버튼 비활성 — 불필요 저장 차단)
   - ⚡ **즉시 배치 실행** — 비밀번호 + 한 클릭 → 약 30초 뒤 배치 동작 (마지막 배치 시각 인라인 표시)
-  - 💬 Slack 알림 슬라이더(on/off) + Webhook URL 저장 + 도움말(GPT 프롬프트 복사)
+  - 💬 Slack 알림 슬라이더(on/off) + Webhook URL `저장` + 도움말(GPT 프롬프트 복사)
   - 👤 유저 목록 (활성/비활성 카운트, 슬라이더 토글, 삭제) — 활성 먼저 정렬
   - 🎁 쿠폰 목록 (코드 · 등록시각, 슬라이더 토글) — 활성 먼저 → 최신순
     (`INVALID_CODE` 오타 코드는 숨김 → 목록 아래 `🗑 존재하지 않는 코드 N개` 칩 + 정리 버튼)
   - 🔄 자동 쿠폰 동기화 슬라이더(on/off) + `지금 동기화 (1회)` 버튼 + 마지막 동기화 결과
-  - 각 헤더 우측에 마지막 사용시각 표시 (`🕒 yyyy-MM-dd HH:mm`)
+  - 📊 정기 보고서 슬라이더(on/off) + 주기 드롭다운(매주/격주/월간) + `저장` + `지금 보고서 (1회)`
+  - 각 헤더 우측에 마지막 사용시각 표시 (`🕒 yyyy-MM-dd HH:mm`, **접속자 현지시간** — 서버는 UTC ISO 저장)
 
 UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 
-## 알림 — Slack 단일 채널 + 6개 카테고리 토글
+## 알림 — Slack 단일 채널 + 7개 카테고리 토글
 
 **왜 Slack 만?** GAS 공유 IP 는 Discord Cloudflare 에 _지속적으로 차단_ 받음
 (429 + cf-ray 헤더 + X-RateLimit-Scope 없음 = IP 평판 문제). 알림 누락 빈도 높아
@@ -183,9 +189,9 @@ UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 
 배치/설정 이벤트 시 `notify_(embed, target, category)` dispatcher 가 활성화된 채널 모두 호출.
 
-### 카테고리별 ON/OFF (관리 UI 6개 슬라이더)
+### 카테고리별 ON/OFF (관리 UI 7개 슬라이더)
 
-채널이 ON 이어도 카테고리 OFF 면 해당 이벤트는 전송 X. 6개 모두 기본 ON
+채널이 ON 이어도 카테고리 OFF 면 해당 이벤트는 전송 X. 7개 모두 기본 ON
 (opt-out) — 처음 전부 켜고 시작 → 노이즈 느끼는 항목만 OFF 로 자기 운영 스타일에 맞춤.
 
 | 카테고리      | 기본 | 포함 이벤트                                                |
@@ -194,8 +200,9 @@ UI 액션 후 목록·카운트·시각은 자동 갱신됨.
 | ⏱ 배치 예약   | ON   | 쿠폰/유저 등록·수동 버튼 → "N초 뒤 배치 예약" 안내         |
 | 👤 유저 변경  | ON   | 등록 (닉네임/ID/카운트 + 아바타 썸네일) · 삭제 · 활성 토글 |
 | 🎟 쿠폰 변경  | ON   | 등록 (VALID/EXPIRED/INVALID_CODE 분기) · 활성 토글         |
-| ⚙️ 설정 변경  | ON   | TTL 변경 · Slack URL/토글 · 자동 동기화 토글               |
+| ⚙️ 설정 변경  | ON   | TTL 변경 · Slack URL/토글 · 자동 동기화 토글 · 보고서 설정 |
 | 🔄 자동동기화 | ON   | 외부 소스 신규 쿠폰 발견·등록 요약 · fetch/스키마 오류     |
+| 📊 정기보고서 | ON   | 정기 운영 보고서 본문(digest) — 주간/격주/월간 발송        |
 
 채널 자체의 테스트/ON/OFF 메시지(`✅ 연동 완료` 등) 는 카테고리 게이트 무시 — 채널 검증 목적.
 
@@ -261,14 +268,20 @@ burst 를 줄이거나 egress 를 GAS 밖(전용 IP)으로 분리.
 | `NOTIFY_COUPON`                     | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                        |
 | `NOTIFY_SETTINGS`                   | (true)                                      | 카테고리: 설정 변경 (기본 ON)                        |
 | `NOTIFY_SYNC`                       | (true)                                      | 카테고리: 자동동기화 (기본 ON)                       |
+| `NOTIFY_REPORT`                     | (true)                                      | 카테고리: 정기보고서 (기본 ON)                       |
 | `AUTO_SYNC_ENABLED`                 | (OFF)                                       | `'true'` 면 자동 동기화 ON (UI/메뉴 토글과 동일)     |
 | `COUPON_SOURCE_URL`                 | `https://ks-rewards.com/api/codes`          | 주 동기화 소스 URL 교체 (ks-rewards 스키마)          |
 | `COUPON_SOURCE_URL_FALLBACK`        | `https://kingshotdata.kr/data/coupons.json` | 예비 소스 URL 교체 (kingshotdata 스키마, 주 실패 시) |
 | `SYNC_FAIL_AUTOOFF_STREAK`          | `168` (≈1주일 @1h)                          | 모든 소스 연속 실패 N회 시 자동 OFF (0이면 끔)       |
 | `SYNC_FAIL_STREAK`                  | —                                           | 자동 관리 (연속 실패 카운터, 성공 시 0)              |
-| `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용)                         |
-| `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, 관리 UI 표시)           |
-| `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각·결과, 관리 UI 표시)    |
+| `REPORT_ENABLED`                    | (ON)                                        | `'false'` 면 정기 보고서 OFF (그 외/미설정=기본 ON)  |
+| `REPORT_PERIOD`                     | `weekly`                                    | 보고서 주기 `weekly`/`biweekly`/`monthly`            |
+| `REPORT_EMAIL`                      | —                                           | 보고서 메일 수신자(쉼표구분). 비우면 Slack 만        |
+| `REPORT_TRIGGER_ENSURED`            | —                                           | 자동 관리 (self-heal 게이트 도장)                    |
+| `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용, **UTC ISO**)            |
+| `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, **UTC ISO**)            |
+| `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각(UTC ISO)·결과)         |
+| `LAST_REPORT_AT`                    | —                                           | 자동 기록 (마지막 정기 보고 시각, **UTC ISO**)       |
 | `BATCH_RL_RETRY_COUNT`              | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3)      |
 
 ## 자동 쿠폰 동기화 (옵션 · `Sync.js`)
@@ -306,6 +319,29 @@ burst 를 줄이거나 egress 를 GAS 밖(전용 IP)으로 분리.
 - 기존 수동 등록/배치 경로와 완전 분리 — `Sync.js` 통째로 삭제해도 무손상
 - 시트 카피 시 **설치형 트리거는 복사 안 됨** → 멤버/지인 시트는 켜기 전까지 완전 비활성 = 수동 등록 100% 유지
 - 킬스위치: `AUTO_SYNC_ENABLED='false'` 또는 토글 OFF 로 즉시 정지(트리거 제거)
+
+## 정기 보고서 (옵션 · `Report.js`)
+
+운영 현황을 **기간 단위로 요약**해 Slack(+선택 메일)로 1통 보낸다. "이상할 때만" 알리는 엣지
+알림(동기화)과 정반대 축 — "정상이어도 정기적으로" 현황을 보고. **기본 ON** — 관리 UI 슬라이더,
+주기 드롭다운(매주/격주/월간) + `저장`, 또는 메뉴 `📊 보고서` 로 제어. 트리거는 시트 카피 시
+복사 안 되므로 관리 패널 첫 로드에서 `ensureReportTrigger_` 가 self-heal 설치(once-flag 게이트).
+
+**보고 항목 (전부 현재 상태 기준):**
+
+- 🎟 쿠폰: 활성 / 신규(기간 내) / 만료 · 👤 유저: 총 / 활성 / 신규
+- 📦 **전달 현황** = 활성유저 × 활성쿠폰 중 **미전달 조합 수** (0이면 "전부 전달")
+- 🔄 동기화 상태 · 🗓 마지막 배치
+
+> 전달 현황을 "현재 상태 미전달 조합"으로 잡는 이유: `logs` 는 죽은 코드·삭제 유저 행이 purge 되므로
+> 행 기반 "기간 내 성공률"은 흔들린다. purge 는 항상 엔티티의 활성집합 이탈과 짝지어 일어나므로,
+> 현재상태 집계는 **유저삭제·쿠폰만료·상태변경 어떤 조합에도 안 깨진다**(로그 나이와 무관).
+
+**격리 보장 (`Report.js` 통째 삭제해도 본체 무영향):**
+
+- **read-only** — `users`/`coupons`/`logs` 읽기만. 쓰는 건 자기 Property(`REPORT_*`)뿐 → dedup·배치·동기화 무접촉
+- 모든 진입점 `try/catch` + 집계 구간별 `try/catch` → 한 구간 실패해도 그 칸만 비우고 나머지 발송. 무데이터/시트삭제도 안전
+- 트리거 핸들러 독립(`reportScheduled` 전용) → 배치·동기화 트리거 무접촉. 알림은 ON↔OFF·주기변경에만(무변경 skip)
 
 ## 참고 프로젝트 비교 (생태계 분석)
 

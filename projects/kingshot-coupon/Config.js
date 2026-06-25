@@ -38,21 +38,24 @@ function getConfig() {
   if (__configCache) {
     return __configCache;
   }
-  const props = PropertiesService.getScriptProperties();
+  // ⚡ 모든 Script Property 를 한 번에(getProperties) 읽는다. 개별 getProperty 는 호출마다 백엔드 왕복이라
+  //   ~17개면 수백 ms(실측 cfg 최대 1144ms) — getProperties 1콜로 배칭. 의미 동일: 미설정 키는 undefined →
+  //   `|| DEFAULT` · `!== 'false'` · `=== 'true'` 패턴이 null 일 때와 똑같이 작동(사이드이펙트 0).
+  const props = PropertiesService.getScriptProperties().getProperties();
 
-  const salt = props.getProperty('KINGSHOT_SALT') || DEFAULT_SALT;
-  const baseUrl = props.getProperty('KINGSHOT_BASE_URL') || DEFAULT_BASE_URL;
+  const salt = props.KINGSHOT_SALT || DEFAULT_SALT;
+  const baseUrl = props.KINGSHOT_BASE_URL || DEFAULT_BASE_URL;
   // 기본값은 검증 ON. 'false' 문자열일 때만 끈다.
-  const verifyPlayer = props.getProperty('KINGSHOT_VERIFY_PLAYER') !== 'false';
+  const verifyPlayer = props.KINGSHOT_VERIFY_PLAYER !== 'false';
 
   // 유저 정원 (기본 200, 0 이면 무제한). 200@2.5s 지연이면 봇감지 레이트는 안전 — 늘어나는 건
   // 쿠폰 드랍당 배치 지속시간(자동 이어실행이 흡수)뿐. 더 키우려면 Property 로 오버라이드.
-  const maxUsersProp = parseInt(props.getProperty('KINGSHOT_MAX_USERS'), 10);
+  const maxUsersProp = parseInt(props.KINGSHOT_MAX_USERS, 10);
   const maxUsers = isNaN(maxUsersProp) ? 200 : maxUsersProp;
 
   // 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔). 킹샷 코드 수명(7~30일)을 대부분 덮어 조기절단 방지.
   // 실제 만료는 dead-code 캐시(API 응답)가 1콜로 잡으므로 길게 둬도 비용 ~0.
-  const ttlProp = parseInt(props.getProperty('KINGSHOT_COUPON_TTL_DAYS'), 10);
+  const ttlProp = parseInt(props.KINGSHOT_COUPON_TTL_DAYS, 10);
   const couponTtlDays = isNaN(ttlProp) ? 30 : ttlProp;
 
   __configCache = {
@@ -92,27 +95,27 @@ function getConfig() {
     couponTtlDays,
 
     // 쿠폰 등록 시 검증에 쓸 fid (없으면 첫 active 유저 사용)
-    validateFid: props.getProperty('KINGSHOT_VALIDATE_FID') || '',
+    validateFid: props.KINGSHOT_VALIDATE_FID || '',
 
     // Slack 알림용 Incoming Webhook URL (유일한 채널)
-    slackWebhookUrl: props.getProperty('SLACK_WEBHOOK_URL') || '',
-    slackEnabled: props.getProperty('SLACK_ENABLED') !== 'false',
+    slackWebhookUrl: props.SLACK_WEBHOOK_URL || '',
+    slackEnabled: props.SLACK_ENABLED !== 'false',
     // Slack 알림 언어(SLACK_LANG) — 배포자 채널용. 최초 null 이면 메뉴 언어로 seed, 이후 웹앱 전용.
     // 기본 en(국제 게임·안전한 실패모드: 영어권이 한국어에 막히는 것보다 한국인이 영어 보는 게 나음).
-    slackLang: props.getProperty('SLACK_LANG') === 'ko' ? 'ko' : 'en',
+    slackLang: props.SLACK_LANG === 'ko' ? 'ko' : 'en',
     // 시트 메뉴 언어(MENU_LANG) — 시트 메뉴에서 변경(웹앱 배포 전에도 가능). 기본 en.
-    menuLang: props.getProperty('MENU_LANG') === 'ko' ? 'ko' : 'en',
+    menuLang: props.MENU_LANG === 'ko' ? 'ko' : 'en',
 
     // 알림 카테고리 — 채널(Slack)이 ON 이어도 해당 카테고리 OFF 면 전송 X.
     // 7개 카테고리 모두 기본 ON (opt-out 정책) — 처음 전부 켜놓고 노이즈 느끼면 관리 UI 에서 끔.
     notify: {
-      batch: props.getProperty('NOTIFY_BATCH') !== 'false',
-      schedule: props.getProperty('NOTIFY_SCHEDULE') !== 'false',
-      user: props.getProperty('NOTIFY_USER') !== 'false',
-      coupon: props.getProperty('NOTIFY_COUPON') !== 'false',
-      settings: props.getProperty('NOTIFY_SETTINGS') !== 'false',
-      sync: props.getProperty('NOTIFY_SYNC') !== 'false',
-      report: props.getProperty('NOTIFY_REPORT') !== 'false',
+      batch: props.NOTIFY_BATCH !== 'false',
+      schedule: props.NOTIFY_SCHEDULE !== 'false',
+      user: props.NOTIFY_USER !== 'false',
+      coupon: props.NOTIFY_COUPON !== 'false',
+      settings: props.NOTIFY_SETTINGS !== 'false',
+      sync: props.NOTIFY_SYNC !== 'false',
+      report: props.NOTIFY_REPORT !== 'false',
     },
   };
   return __configCache;

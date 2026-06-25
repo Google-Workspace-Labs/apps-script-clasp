@@ -1,4 +1,4 @@
-/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, refreshCurrentNickname_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt, fmtReportAt_, ensureReportTrigger_ */
+/* global getConfig, invalidateConfigCache_, loginPlayer, redeemCoupon, findUser_, refreshCurrentNickname_, addUserToSheet_, countUsers_, findCoupon_, addCouponToSheet_, getValidateFid_, readUsers_, readCoupons_, hasActiveCoupons_, stampDate_, requireSheet_, COL, requestBatch_, notifySlack_, notify_, NOTIFY_COLORS, logSystem_, purgeLogsForUser_, purgeInvalidCoupons_, nt, ensureReportTrigger_, tsNow_, tsToIso_ */
 
 /**
  * Kingshot Coupon - 웹앱 UI (등록·조회·관리)
@@ -313,7 +313,7 @@ function apiToggleUser(fid, password) {
     const fmtEn = (b) => (b ? 'active' : 'inactive');
     const sheet = requireSheet_('users');
     sheet.getRange(user.row, COL.users.active).setValue(next);
-    stampDate_(sheet, user.row, COL.users.updated, new Date());
+    stampDate_(sheet, user.row, COL.users.updated, tsNow_());
     touchManage_();
     logSystem_(
       'INFO',
@@ -364,7 +364,7 @@ function apiToggleCoupon(code, password) {
     if (next && DEAD_STATUS.indexOf(String(c.status).toUpperCase()) !== -1) {
       sheet.getRange(c.row, COL.coupons.status).setValue('VALID');
     }
-    stampDate_(sheet, c.row, COL.coupons.updated, new Date());
+    stampDate_(sheet, c.row, COL.coupons.updated, tsNow_());
     touchManage_();
     logSystem_(
       'INFO',
@@ -427,10 +427,11 @@ function apiListManage() {
         code: c.code,
         enabled: c.enabled,
         status: c.status || '',
-        created: c.created ? Utilities.formatDate(c.created, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : '',
+        created: tsToIso_(c.created), // UTC ISO → client 가 현지시간으로 포맷
       }));
 
-    const props = PropertiesService.getScriptProperties();
+    // ⚡ 상태용 Property 도 한 번에(getProperties) — 개별 getProperty 왕복 ~8개 제거.
+    const props = PropertiesService.getScriptProperties().getProperties();
     return {
       ok: true,
       ttlDays: config.couponTtlDays,
@@ -440,8 +441,8 @@ function apiListManage() {
       // 헤더 표시용 "마지막 사용시각" — 시트 안 보는 사용자용
       lastUserReg: fmtTs_(maxCreated_(usersRaw)), // 유저 created 최댓값
       lastCouponReg: fmtTs_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
-      lastManage: props.getProperty('LAST_MANAGE_AT') || '',
-      lastBatch: props.getProperty('LAST_BATCH_AT') || '', // 배치 신선도 표시용
+      lastManage: props.LAST_MANAGE_AT || '',
+      lastBatch: props.LAST_BATCH_AT || '', // 배치 신선도 표시용
       slackSet: !!config.slackWebhookUrl, // URL 자체는 노출하지 않음(비밀)
       slackEnabled: !!config.slackWebhookUrl && config.slackEnabled,
       slackLang: config.slackLang, // Slack 알림 언어(배포자 설정)
@@ -455,13 +456,13 @@ function apiListManage() {
         report: !!config.notify.report,
       },
       // 외부 쿠폰 소스 자동 동기화 상태 (Sync.js)
-      autoSyncEnabled: props.getProperty('AUTO_SYNC_ENABLED') === 'true',
-      lastSync: props.getProperty('LAST_SYNC_AT') || '',
-      lastSyncResult: props.getProperty('LAST_SYNC_RESULT') || '',
-      // 정기 보고서 상태 (Report.js). 기본 ON(opt-out): 'false' 만 OFF. lastReport ISO → 표시용 KST.
-      reportEnabled: props.getProperty('REPORT_ENABLED') !== 'false',
-      reportPeriod: props.getProperty('REPORT_PERIOD') || 'weekly',
-      lastReport: fmtReportAt_(props.getProperty('LAST_REPORT_AT')),
+      autoSyncEnabled: props.AUTO_SYNC_ENABLED === 'true',
+      lastSync: props.LAST_SYNC_AT || '',
+      lastSyncResult: props.LAST_SYNC_RESULT || '',
+      // 정기 보고서 상태 (Report.js). 기본 ON(opt-out): 'false' 만 OFF. lastReport ISO → client 포맷.
+      reportEnabled: props.REPORT_ENABLED !== 'false',
+      reportPeriod: props.REPORT_PERIOD || 'weekly',
+      lastReport: props.LAST_REPORT_AT || '', // UTC ISO → client 포맷
     };
   });
 }
@@ -643,17 +644,14 @@ function maxCreated_(rows) {
   return max;
 }
 
-/** Date → 'yyyy-MM-dd HH:mm'(KST) 또는 '' */
+/** Date → UTC ISO 문자열 또는 '' (web client 가 접속자 현지시간으로 포맷) */
 function fmtTs_(date) {
-  return date ? Utilities.formatDate(date, 'Asia/Seoul', 'yyyy-MM-dd HH:mm') : '';
+  return tsToIso_(date);
 }
 
-/** 마지막 관리 액션 시각을 Script Property 에 기록 */
+/** 마지막 관리 액션 시각을 Script Property 에 기록 (UTC ISO 단일 원천) */
 function touchManage_() {
-  PropertiesService.getScriptProperties().setProperty(
-    'LAST_MANAGE_AT',
-    Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm'),
-  );
+  PropertiesService.getScriptProperties().setProperty('LAST_MANAGE_AT', tsNow_());
 }
 
 /** 쿠폰 자동만료 일수(TTL) 변경 → Script Property 저장. @returns {{ok:boolean, ttlDays?:number, message:string}} */

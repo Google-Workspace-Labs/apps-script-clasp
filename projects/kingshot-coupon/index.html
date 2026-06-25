@@ -247,6 +247,9 @@
       .sbtn {
         flex: 0 0 auto;
         padding: 14px 18px;
+        /* 저장/적용 등 짧은 버튼 폭 고정 → KO '저장' ↔ EN 'Save' 전환 시 크기·레이아웃 안 흔들림
+           (전폭 버튼은 width:100% 가 우선이라 영향 없음). #lookupBtn 과 동일 취지. */
+        min-width: 76px;
       }
       /* 보고서 주기 select — native select 가 버튼 radius 를 못 받아 각지므로 직접 스타일(버튼과 통일) */
       .sselect {
@@ -802,7 +805,9 @@
 
       <!-- 유저 등록 (연속 등록) -->
       <div class="card">
-        <h2><span data-i18n="u_register">👤 유저 등록</span><span id="userTs" class="hts"></span></h2>
+        <h2>
+          <span data-i18n="u_register">👤 유저 등록</span><span id="userTs" class="hts">🕒 …</span>
+        </h2>
         <div class="divider"></div>
         <div class="row">
           <input
@@ -850,7 +855,9 @@
 
       <!-- 쿠폰 등록 -->
       <div class="card">
-        <h2><span data-i18n="c_register">🎁 쿠폰 등록</span><span id="couponTs" class="hts"></span></h2>
+        <h2>
+          <span data-i18n="c_register">🎁 쿠폰 등록</span><span id="couponTs" class="hts">🕒 …</span>
+        </h2>
         <div class="divider"></div>
         <input
           id="code"
@@ -880,7 +887,7 @@
             </button>
             <button class="entry-btn" onclick="openEntryDB()">🗄️ Entry</button>
           </span>
-          <span id="manageTs" class="hts"></span>
+          <span id="manageTs" class="hts">🕒 …</span>
         </h2>
         <div class="divider"></div>
 
@@ -1017,7 +1024,7 @@
             <span class="shint" data-i18n="m_ttl_hint">0 = 끔</span>
           </div>
           <div class="row">
-            <input id="ttlInput" type="text" inputmode="numeric" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveTtl();}" />
+            <input id="ttlInput" type="text" inputmode="numeric" oninput="stageTtl()" onkeydown="if(event.key==='Enter'&&!event.isComposing){event.preventDefault();saveTtl();}" />
             <button class="btn-sec sbtn" id="ttlSaveBtn" data-i18n="btn_save" onclick="saveTtl()">저장</button>
           </div>
 
@@ -1025,7 +1032,7 @@
             <span class="slabel" style="margin: 0">
               <span data-i18n="m_batch">⚡ 즉시 배치 실행</span>
             </span>
-            <span id="lastBatchTs" class="shint" style="font-weight: 600">🕒 -</span>
+            <span id="lastBatchTs" class="shint" style="font-weight: 600">🕒 …</span>
           </div>
           <div class="row" style="margin-top: 6px">
             <button
@@ -1083,11 +1090,11 @@
             <button
               class="btn-sec sbtn"
               id="reportApplyBtn"
-              data-i18n="btn_report_apply"
+              data-i18n="btn_save"
               onclick="applyReportPeriod()"
               disabled
             >
-              적용
+              저장
             </button>
           </div>
           <div class="row" style="margin-top: 6px">
@@ -1729,15 +1736,19 @@
             if (res && res.ok) {
               _lastManageRes = res;
               $('ttlInput').value = res.ttlDays;
+              $('ttlInput').setAttribute('data-prev', String(res.ttlDays));
+              $('ttlSaveBtn').disabled = true; // 저장값과 동기화 → 변경 전엔 비활성
               _allUsers = res.users || [];
               _allCoupons = res.coupons || [];
               renderUsers();
               renderCoupons();
               renderInvalidChip(res.invalidHiddenCount || 0);
-              $('userTs').textContent = res.lastUserReg ? '🕒 ' + res.lastUserReg : '';
-              $('couponTs').textContent = res.lastCouponReg ? '🕒 ' + res.lastCouponReg : '';
-              $('manageTs').textContent = res.lastManage ? '🕒 ' + res.lastManage : '';
-              $('lastBatchTs').textContent = res.lastBatch ? '🕒 ' + res.lastBatch : '🕒 -';
+              $('userTs').textContent = res.lastUserReg ? '🕒 ' + fmtLocal_(res.lastUserReg) : '';
+              $('couponTs').textContent = res.lastCouponReg
+                ? '🕒 ' + fmtLocal_(res.lastCouponReg)
+                : '';
+              $('manageTs').textContent = res.lastManage ? '🕒 ' + fmtLocal_(res.lastManage) : '';
+              $('lastBatchTs').textContent = res.lastBatch ? '🕒 ' + fmtLocal_(res.lastBatch) : '🕒 -';
               updateChannelUI(res);
             }
           })
@@ -1922,8 +1933,9 @@
           if (c.created || c.status) {
             const meta = document.createElement('span');
             meta.className = 'mmeta';
+            const createdLocal = c.created ? fmtLocal_(c.created) : '';
             meta.textContent =
-              (c.created || '') + (c.created && c.status ? ' · ' : '') + (c.status || '');
+              createdLocal + (createdLocal && c.status ? ' · ' : '') + (c.status || '');
             name.appendChild(meta);
           }
           const sw = makeSwitch(c.enabled, function (cb) {
@@ -2003,31 +2015,44 @@
           .apiDeleteUser(fid, pw);
       }
 
+      // 입력값이 저장값과 다를 때만 [저장] 활성화 (보고서 주기 버튼과 동일 패턴).
+      function stageTtl() {
+        const inp = $('ttlInput');
+        $('ttlSaveBtn').disabled = inp.value.trim() === (inp.getAttribute('data-prev') || '');
+      }
+
       function saveTtl() {
+        const inp = $('ttlInput');
+        const val = inp.value.trim();
+        if (val === (inp.getAttribute('data-prev') || '')) {
+          return; // 변경 없음 → no-op (Enter 우회로 같은 값 저장/알림 방지)
+        }
         const pw = requirePw();
         if (!pw) return;
         const btn = $('ttlSaveBtn');
-        const restore = function () {
-          btn.disabled = false;
-          btn.textContent = t('btn_save');
-        };
         btn.disabled = true; // 즉시 비활성 = 눌림 인지(중복저장 방지)
         google.script.run
           .withSuccessHandler(function (res) {
             mgFlash(srvMsg_(res));
             if (res && res.ok) {
-              $('ttlInput').value = res.ttlDays;
+              inp.value = res.ttlDays;
+              inp.setAttribute('data-prev', String(res.ttlDays));
               btn.textContent = t('btn_saved'); // ✓ 저장됨 — 행 옆 즉시 피드백
-              setTimeout(restore, 1500);
+              setTimeout(function () {
+                btn.textContent = t('btn_save');
+                btn.disabled = true; // 저장값과 같아졌으니 비활성 유지
+              }, 1500);
             } else {
-              restore();
+              btn.textContent = t('btn_save');
+              btn.disabled = false; // 실패 → 재시도 허용
             }
           })
           .withFailureHandler(function (e) {
             mgFlash('⚠️ ' + errMsg(e));
-            restore();
+            btn.textContent = t('btn_save');
+            btn.disabled = false;
           })
-          .apiSetCouponTtl($('ttlInput').value.trim(), pw);
+          .apiSetCouponTtl(val, pw);
       }
 
       function runBatchNow() {
@@ -2059,6 +2084,29 @@
             restore();
           })
           .apiRunBatchNow(pw);
+      }
+
+      // UTC ISO('2026-05-28T08:01:07Z') → **접속자 브라우저 현지시간** 'yyyy-MM-dd HH:mm'.
+      // 서버는 단일 원천 UTC ISO 만 보냄 → 보는 사람 디바이스 기준으로 여기서 변환(한국=KST·미국=PST 자동).
+      // 파싱 실패(레거시 등)면 원문 그대로 표시(안 깨짐).
+      function fmtLocal_(v) {
+        if (!v) return '';
+        const d = new Date(v);
+        if (isNaN(d.getTime())) return String(v);
+        const p = function (n) {
+          return ('0' + n).slice(-2);
+        };
+        return (
+          d.getFullYear() +
+          '-' +
+          p(d.getMonth() + 1) +
+          '-' +
+          p(d.getDate()) +
+          ' ' +
+          p(d.getHours()) +
+          ':' +
+          p(d.getMinutes())
+        );
       }
 
       // 서버가 저장한 동기화 결과를 접속자 언어로 포맷.
@@ -2100,7 +2148,7 @@
         // 자동 쿠폰 동기화 상태
         $('syncSwitch').checked = !!res.autoSyncEnabled;
         $('syncLast').textContent = res.lastSync
-          ? t('last_sync', res.lastSync, fmtSyncResult_(res.lastSyncResult))
+          ? t('last_sync', fmtLocal_(res.lastSync), fmtSyncResult_(res.lastSyncResult))
           : t('sync_idle');
         // 정기 보고서 상태
         $('reportSwitch').checked = !!res.reportEnabled;
@@ -2110,7 +2158,7 @@
         }
         $('reportApplyBtn').disabled = true; // 저장값과 동기화 → 적용 버튼 비활성
         $('reportLast').textContent = res.lastReport
-          ? t('last_report', res.lastReport)
+          ? t('last_report', fmtLocal_(res.lastReport))
           : t('report_idle');
         // 알림 카테고리 토글 렌더
         renderNotifyRows(res.notify || {});

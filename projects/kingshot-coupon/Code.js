@@ -1,4 +1,4 @@
-/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_, nt, invalidateConfigCache_ */
+/* global getConfig, loginPlayer, redeemCouponWithRetry, notify_, buildBatchEmbed_, requestBatch_, removeTriggers_, nt, invalidateConfigCache_, tsNow_, tsParse_ */
 
 /**
  * Kingshot Coupon - 엔트리 / 메뉴 / 배치 / 시트 I/O
@@ -815,10 +815,7 @@ function runCouponBatch_() {
 
   // 마지막 배치 시각 기록 — 관리 UI 의 'lastBatch' 표시용 (시트 안 보고도 신선도 판단)
   const props = PropertiesService.getScriptProperties();
-  props.setProperty(
-    'LAST_BATCH_AT',
-    Utilities.formatDate(new Date(), 'Asia/Seoul', 'yyyy-MM-dd HH:mm'),
-  );
+  props.setProperty('LAST_BATCH_AT', tsNow_()); // UTC ISO (단일 원천)
 
   // ── RATE_LIMITED 자동 N차 재시도 결정 ──
   // stats.warn > 0 (= rate limit/오류 감지) 면 3분 cool-down 후 자동 재시도. 최대 3회.
@@ -1089,7 +1086,7 @@ function logSystem_(level, source, msg, target) {
         .setBackground('#f0f0f0');
       sheet.setFrozenRows(1);
     }
-    sheet.appendRow([new Date(), level, source, String(msg).slice(0, 1000), target || '']);
+    sheet.appendRow([tsNow_(), level, source, String(msg).slice(0, 1000), target || '']);
     sheet.getRange(sheet.getLastRow(), COL.systemLogs.time).setNumberFormat(DATE_NUMBER_FORMAT);
     if (sheet.getLastRow() > 1001) {
       sheet.deleteRows(2, 100); // 오래된 100행 회전
@@ -1359,13 +1356,12 @@ function readUsers_() {
     if (fid === '' || fid === null) {
       continue;
     }
-    const created = r[COL.users.created - 1];
     out.push({
       fid: String(fid).trim(),
       nickname: r[COL.users.nickname - 1], // 최초(불변)
       currentNickname: r[COL.users.currentNickname - 1], // 현재
       active: isTrue_(r[COL.users.active - 1]),
-      created: created instanceof Date ? created : null,
+      created: tsParse_(r[COL.users.created - 1]), // UTC ISO | 레거시 Date → Date|null
       row: i + 1,
     });
   }
@@ -1400,10 +1396,7 @@ function readCoupons_() {
       status: values[i][COL.coupons.status - 1]
         ? String(values[i][COL.coupons.status - 1]).trim()
         : '',
-      created:
-        values[i][COL.coupons.created - 1] instanceof Date
-          ? values[i][COL.coupons.created - 1]
-          : null,
+      created: tsParse_(values[i][COL.coupons.created - 1]), // UTC ISO | 레거시 Date → Date|null
       row: i + 1, // values 인덱스 i → 시트 행번호 i+1
     });
   }
@@ -1426,7 +1419,7 @@ function disableCoupon_(couponRow, statusText) {
   }
   sheet.getRange(couponRow, COL.coupons.enabled).setValue(false);
   sheet.getRange(couponRow, COL.coupons.status).setValue(statusText);
-  stampDate_(sheet, couponRow, COL.coupons.updated, new Date());
+  stampDate_(sheet, couponRow, COL.coupons.updated, tsNow_());
 }
 
 /**
@@ -1580,7 +1573,7 @@ function getProcessedSet_() {
  */
 function appendLog_(fid, code, result, message) {
   const sheet = requireSheet_('logs');
-  sheet.appendRow([new Date(), fid, code, result, message]);
+  sheet.appendRow([tsNow_(), fid, code, result, message]);
   sheet.getRange(sheet.getLastRow(), COL.logs.time).setNumberFormat(DATE_NUMBER_FORMAT);
   if (sheet.getLastRow() > 5001) {
     rotateNoiseLogs_(sheet);
@@ -1762,17 +1755,19 @@ function findUser_(fid) {
   return null;
 }
 
-// created/updated 셀 표시 형식 (24시간, 오전/오후 없이)
+// 셀 표시 형식. 이제 셀엔 UTC ISO 문자열(tsNow_)이 들어가며, _문자열은 형식 무관 텍스트로 표시_ 된다.
+// 이 형식은 마이그레이션 전 남아있는 레거시 Date 값에만 적용됨(그건 날짜로 보임). 절대 '@'(텍스트)로
+// 두면 안 됨 — 레거시 Date 셀이 시리얼 숫자로 보임. 마이그레이션이 값을 ISO 문자열로 바꾼 뒤 '@' 로 정리.
 const DATE_NUMBER_FORMAT = 'yyyy-mm-dd hh:mm:ss';
 
-/** 날짜 값을 셀에 쓰고 표시 형식을 24시간으로 지정 */
+/** 시각 문자열(tsNow_의 UTC ISO)을 셀에 쓴다. 문자열이라 형식 무관 텍스트로 표시됨. */
 function stampDate_(sheet, row, col, value) {
   sheet.getRange(row, col).setValue(value).setNumberFormat(DATE_NUMBER_FORMAT);
 }
 
 /**
- * created/updated 2칸을 24시간 날짜 형식으로 통일 (createdCol 부터 2칸 — created·updated 는 인접 전제).
- * 기존 행 포함 self-healing. createdCol 은 시트별로 다름(users=COL.users.created=5, coupons=4).
+ * created/updated 2칸 형식 통일 (createdCol 부터 2칸 — created·updated 는 인접 전제).
+ * 레거시 Date 값 표시용(ISO 문자열은 형식 무관 텍스트). createdCol 은 시트별로 다름(users=5, coupons=4).
  */
 function formatDateColumns_(sheet, createdCol) {
   const last = sheet.getLastRow();
@@ -1784,7 +1779,7 @@ function formatDateColumns_(sheet, createdCol) {
 /** users 시트에 추가. 신규는 nickname=current_nickname(같은 값) 둘 다 기록. */
 function addUserToSheet_(fid, nickname) {
   const sheet = requireSheet_('users');
-  const now = new Date();
+  const now = tsNow_(); // UTC ISO
   const nick = nickname || '';
   sheet.appendRow([String(fid).trim(), nick, nick, true, now, now]); // [fid, 최초, 현재, active, created, updated]
   formatDateColumns_(sheet, COL.users.created);
@@ -1825,7 +1820,7 @@ function findCoupon_(code) {
  */
 function addCouponToSheet_(code, status, enabled) {
   const sheet = requireSheet_('coupons');
-  const now = new Date();
+  const now = tsNow_(); // UTC ISO
   const isEnabled = enabled === undefined ? true : !!enabled;
   sheet.appendRow([String(code).trim(), isEnabled, status || '', now, now]);
   formatDateColumns_(sheet, COL.coupons.created);

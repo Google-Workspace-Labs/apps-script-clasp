@@ -1,4 +1,4 @@
-/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, nt, getConfig */
+/* global apiRegisterCoupon, findCoupon_, notify_, NOTIFY_COLORS, logSystem_, checkDatePassword_, safeApi_, touchManage_, removeTriggers_, nt, getConfig, tsToIso_ */
 
 /**
  * Kingshot Coupon — 외부 쿠폰 소스 자동 동기화 (옵션 레이어)
@@ -198,6 +198,8 @@ function runCouponSync_(isManual) {
   let wasOk = true;
   try {
     wasOk = lastSyncWasOk_();
+    // ⚠️ 의도적 KST: 외부 소스(kingshotdata)의 until 날짜와 비교하는 date-only 값(소스 의미) —
+    //    우리 저장 타임스탬프(UTC ISO 단일원천)와 무관. UTC 로 바꾸면 만료 경계가 몇 시간 어긋남.
     const today = Utilities.formatDate(startedAt, 'Asia/Seoul', 'yyyy-MM-dd');
 
     // 1) 소스 수집(주→예비 폴백). 둘 다 죽으면 조용히 실패 처리.
@@ -397,7 +399,7 @@ function lastSyncWasOk_() {
  */
 function stampSync_(date, result) {
   const props = PropertiesService.getScriptProperties();
-  props.setProperty('LAST_SYNC_AT', Utilities.formatDate(date, 'Asia/Seoul', 'yyyy-MM-dd HH:mm'));
+  props.setProperty('LAST_SYNC_AT', tsToIso_(date)); // UTC ISO (단일 원천)
   props.setProperty('LAST_SYNC_RESULT', JSON.stringify(result).slice(0, 300));
 }
 
