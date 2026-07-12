@@ -942,6 +942,32 @@ clasp deploy --deploymentId <기존 ID> -d "Update"
 
 ---
 
+### "Premature close" — clasp login/push/deploy 실패 (Node 회귀)
+
+```bash
+# 증상: clasp login / push / deploy 가 아래 오류로 실패
+# Invalid response body while trying to fetch https://...: Premature close
+
+# 원인: Node 24.17.0 / 22.23.0 의 CVE-2026-48931 보안패치가 keep-alive 소켓
+#      동작을 바꿈 → clasp 내부 node-fetch@2(google-auth-library 체인)가 gzip
+#      응답을 풀 때 false-positive "Premature close" 를 던짐
+#      (native fetch·curl 은 정상이라 진단 시 헷갈림)
+
+# 영향: 24.17.0 ❌ · 22.23.0 ❌  /  안전: 24.16.0 ✅ · 24.14.0 ✅ · 22.22 ✅
+# access token(~1h) 살아있는 동안의 push 는 우연히 되기도 하나,
+# 토큰 갱신·login·deploy 는 확실히 실패
+
+# 해결: 안전한 Node 로 clasp 실행. 프로젝트 .nvmrc(=24.14.0) 고정 후
+nvm use       # .nvmrc 읽어 자동 전환 → "Now using node v24.14.0"
+clasp login   # 이후 push/deploy 정상
+```
+
+> ⚠️ nvm default 가 깨진 버전(24.17.0)이면 새 셸은 자동으로 깨진 버전을 쓰므로
+> **clasp 명령 전 `nvm use` 필수**. 근본 수정(Node 패치 또는 clasp 의 node-fetch
+> 탈피) 전까지 유효. 참고: [nodejs/node#63989](https://github.com/nodejs/node/issues/63989) (confirmed-bug).
+
+---
+
 ## 참고 자료
 
 - [clasp GitHub Repository](https://github.com/google/clasp)
