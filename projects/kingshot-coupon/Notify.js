@@ -67,26 +67,36 @@ function notify_(embed, target, category) {
 /**
  * 배치 완료 임베드 빌더.
  *
- * 색상:
- *   - 회복 (warn=0 + retryStatus 있음) → 초록 (밝게)
- *   - 정상 (warn=0 + fail=0) → 초록
- *   - 실패 (fail>0, warn=0) → 주황
- *   - 경고 (warn>0) → 빨강
+ * 제목 (한눈에 진행/완료 구분):
+ *   - meta.continuing (다음 회차 예약됨) → "배치 진행 중"
+ *   - 그 외 (최종) → "배치 완료 (최종)"
  *
- * footer 에 retry/시간초과 상태도 표시:
- *   - "🔁 자동 재시도 N/3 — 3분 뒤"
- *   - "🚫 N회 재시도 후 X건 영구 차단 — 수동 확인 필요"
- *   - "✅ 자동 재시도 N회 만에 회복"
- *   - "⏱️ 시간초과 → 1분 뒤 자동 이어실행"
+ * 본문 첫 줄 = 상태 요약 (가장 눈에 띄는 자리):
+ *   - 진행 중 → "⏳ 아직 진행 중 — 남은 ~N건"
+ *   - 최종 + 남은 0 → "✅ 최종 완료 — 전부 처리됨"
+ *   - 최종 + 남은 N → "⚠️ 최종 완료 — 남은 N건 (수동 확인)"  ← RL 재시도 소진 등
+ *   - (warn>0 이면 경고 줄 추가)
+ *
+ * 색상:
+ *   - 경고 (warn>0) → 빨강 / 실패 (fail>0) → 주황
+ *   - 진행 중 (정상) → 회색(중립, "아직 안 끝남")  ← 최종 완료(초록)와 시각적으로 구분
+ *   - 최종 완료 (정상) → 초록
+ *
+ * footer = 소요시간 + 시간초과/재시도 상세(언제 다음 회차인지):
+ *   - "⏱️ 시간초과 → 1분 뒤 자동 이어실행" · "🔁 자동 재시도 N/3 — 3분 뒤" · "🚫 …영구 차단" · "✅ …회복"
  */
 function buildBatchEmbed_(stats, meta) {
-  // 회복 케이스는 강조 위해 초록 유지 (warn=0 이지만 retryStatus 있으면 회복)
+  const remaining = meta.remaining || 0;
+  const continuing = !!meta.continuing;
+
   const color =
     stats.warn > 0
       ? NOTIFY_COLORS.red
       : stats.fail > 0
         ? NOTIFY_COLORS.orange
-        : NOTIFY_COLORS.green;
+        : continuing
+          ? NOTIFY_COLORS.gray // 진행 중(정상) = 중립
+          : NOTIFY_COLORS.green; // 최종 완료(정상) = 초록
 
   const footerParts = [nt('bm_footer', { elapsed: meta.elapsedSec, avg: meta.avg })];
   if (meta.stoppedByTime) {
@@ -96,8 +106,17 @@ function buildBatchEmbed_(stats, meta) {
     footerParts.push(meta.retryStatus);
   }
 
-  const embed = {
-    title: nt('bm_title'),
+  // 상태 요약 줄(본문 최상단) — "진행 중 vs 최종 완료 + 남은 건수"
+  const descParts = [
+    continuing ? nt('bm_status_running', { remaining }) : nt('bm_status_done', { remaining }),
+  ];
+  if (stats.warn > 0) {
+    descParts.push(nt('bm_warn', { warn: stats.warn }));
+  }
+
+  return {
+    title: nt(continuing ? 'bm_title_running' : 'bm_title_done'),
+    description: descParts.join('\n'),
     color,
     fields: [
       { name: nt('bm_f_success'), value: `${stats.success}`, inline: true },
@@ -114,10 +133,6 @@ function buildBatchEmbed_(stats, meta) {
     footer: { text: footerParts.join(' · ') },
     timestamp: new Date().toISOString(),
   };
-  if (stats.warn > 0) {
-    embed.description = nt('bm_warn', { warn: stats.warn });
-  }
-  return embed;
 }
 
 // ============================================================

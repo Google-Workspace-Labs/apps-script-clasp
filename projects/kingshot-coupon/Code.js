@@ -859,6 +859,20 @@ function runCouponBatch_() {
     retryStatus = nt('rs_recovered', { n: prevRetry });
   }
 
+  // ── 진행 상태(A) + 남은 건수(C): 알림 멘트가 "진행 중 vs 최종 완료"를 한눈에 전하도록 ──
+  // continuing = 다음 회차가 예약됨(시간초과 이어실행 또는 RL 재시도). nextDelayMs 가 단일 진실원천.
+  const continuing = typeof nextDelayMs === 'number' && nextDelayMs > 0;
+  // 남은 조합 = 활성유저 × 이번 실행 살아있는 활성쿠폰 중 아직 터미널(dedup) 못 든 것.
+  // 인메모리 processed/deadCoupons 로 계산 — 추가 시트 읽기/스캔 없음.
+  let remaining = 0;
+  for (const u of users) {
+    for (const c of coupons) {
+      if (!deadCoupons.has(c.code) && !processed.has(`${u.fid}|${c.code}`)) {
+        remaining++;
+      }
+    }
+  }
+
   // Slack 알림 (임베드 빌더는 Notify.js)
   const batchEmbed = buildBatchEmbed_(stats, {
     userCount: users.length,
@@ -867,6 +881,8 @@ function runCouponBatch_() {
     avg,
     stoppedByTime,
     retryStatus,
+    continuing,
+    remaining,
   });
   notify_(batchEmbed, 'batch', 'batch');
 

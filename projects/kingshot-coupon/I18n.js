@@ -103,8 +103,14 @@ const SLACK_MSG = {
     sync_set_d: (d) =>
       `자동 동기화: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
       (d.on ? `\n⏱ ${d.hours}시간마다 소스 확인` : ''),
-    // 배치 완료 임베드 (buildBatchEmbed_)
-    bm_title: '🎁 Kingshot 배치 완료',
+    // 배치 임베드 (buildBatchEmbed_)
+    bm_title_running: '🎁 Kingshot 배치 진행 중',
+    bm_title_done: '✅ Kingshot 배치 완료 (최종)',
+    bm_status_running: (d) => `⏳ 아직 진행 중 — 남은 ~${d.remaining}건`,
+    bm_status_done: (d) =>
+      d.remaining > 0
+        ? `⚠️ 최종 완료 — 남은 ${d.remaining}건 (수동 확인 필요)`
+        : '✅ 최종 완료 — 전부 처리됨 (남은 0)',
     bm_f_success: '✅ 성공',
     bm_f_already: '🔁 이미받음',
     bm_f_disabled: '🗑️ 만료·무효',
@@ -336,7 +342,13 @@ const SLACK_MSG = {
     sync_set_d: (d) =>
       `Auto-sync: **${d.prev ? 'ON' : 'OFF'} → ${d.on ? 'ON' : 'OFF'}**` +
       (d.on ? `\n⏱ checks source every ${d.hours}h` : ''),
-    bm_title: '🎁 Kingshot batch complete',
+    bm_title_running: '🎁 Kingshot batch — in progress',
+    bm_title_done: '✅ Kingshot batch complete (final)',
+    bm_status_running: (d) => `⏳ Still running — ~${d.remaining} left`,
+    bm_status_done: (d) =>
+      d.remaining > 0
+        ? `⚠️ Final — ${d.remaining} left (manual check needed)`
+        : '✅ Final — all processed (0 left)',
     bm_f_success: '✅ Success',
     bm_f_already: '🔁 Already had',
     bm_f_disabled: '🗑️ Expired/invalid',
