@@ -15,8 +15,9 @@
  *   - KINGSHOT_MAX_USERS     : 유저 등록 정원 (기본 200, 0 이면 무제한)
  *   - KINGSHOT_COUPON_TTL_DAYS : 쿠폰 자동 만료 일수 (기본 30, 0 이면 끔)
  *   - AUTO_SYNC_ENABLED      : 외부 쿠폰 소스 자동 동기화 ON/OFF ('true' 면 ON, 기본 OFF) — Sync.js
- *   - COUPON_SOURCE_URL      : 주 동기화 소스 URL (미설정 시 Sync.js 기본 = ks-rewards)
- *   - COUPON_SOURCE_URL_FALLBACK : 예비 소스 URL (미설정 시 Sync.js 기본 = kingshotdata; 주 실패 시)
+ *   - COUPON_SOURCE_URL      : ks-rewards 소스 URL (미설정 시 Sync.js 기본) — 3소스 합집합
+ *   - COUPON_SOURCE_URL_LOOLOO : looloo 소스 URL (미설정 시 Sync.js 기본) — 3소스 합집합
+ *   - COUPON_SOURCE_URL_FALLBACK : kingshotdata 소스 URL (미설정 시 Sync.js 기본) — 3소스 합집합
  *   - SYNC_FAIL_AUTOOFF_STREAK : 모든 소스 연속 실패 N회 시 자동 동기화 OFF (미설정 시 168=1주일@1h, 0이면 끔) — Sync.js
  *   - REPORT_ENABLED         : 정기 보고서 ON/OFF ('false' 면 OFF, 미설정/그외 = 기본 ON) — Report.js
  *   - REPORT_PERIOD          : 보고서 주기 'weekly'(기본) | 'biweekly' | 'monthly' — Report.js

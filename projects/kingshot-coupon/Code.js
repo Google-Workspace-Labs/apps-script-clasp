@@ -528,13 +528,18 @@ function writeGuideSheet_(ss) {
     { size: 11, h: 44 },
   );
   row(
-    '=HYPERLINK("https://ks-rewards.com","🔗 Coupon source (primary): ks-rewards.com")',
-    '=HYPERLINK("https://ks-rewards.com","🔗 쿠폰 출처 (주): ks-rewards.com")',
+    '=HYPERLINK("https://ks-rewards.com","🔗 Coupon source: ks-rewards.com")',
+    '=HYPERLINK("https://ks-rewards.com","🔗 쿠폰 출처: ks-rewards.com")',
     { formula: true, size: 10 },
   );
   row(
-    '=HYPERLINK("https://kingshotdata.kr","🔗 Fallback source: kingshotdata.kr")',
-    '=HYPERLINK("https://kingshotdata.kr","🔗 예비 출처: kingshotdata.kr")',
+    '=HYPERLINK("https://my-discord-bot2.looloo90.workers.dev","🔗 Coupon source: looloo (kingshot.net tracker)")',
+    '=HYPERLINK("https://my-discord-bot2.looloo90.workers.dev","🔗 쿠폰 출처: looloo (kingshot.net 추적)")',
+    { formula: true, size: 10 },
+  );
+  row(
+    '=HYPERLINK("https://kingshotdata.kr","🔗 Coupon source: kingshotdata.kr")',
+    '=HYPERLINK("https://kingshotdata.kr","🔗 쿠폰 출처: kingshotdata.kr")',
     { formula: true, size: 10 },
   );
   gap();

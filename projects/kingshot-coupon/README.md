@@ -252,37 +252,38 @@ burst 를 줄이거나 egress 를 GAS 밖(전용 IP)으로 분리.
 
 ## Script Properties (선택)
 
-| 키                                  | 기본                                        | 설명                                                 |
-| ----------------------------------- | ------------------------------------------- | ---------------------------------------------------- |
-| `KINGSHOT_SALT`                     | (코드 기본값)                               | sign salt 교체                                       |
-| `KINGSHOT_BASE_URL`                 | `https://kingshot-giftcode.centurygame.com` | API 베이스                                           |
-| `KINGSHOT_VERIFY_PLAYER`            | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔                 |
-| `KINGSHOT_MAX_USERS`                | `200`                                       | 유저 등록 정원 (0=무제한)                            |
-| `KINGSHOT_COUPON_TTL_DAYS`          | `30`                                        | 쿠폰 자동만료 일수 (0=끔)                            |
-| `KINGSHOT_VALIDATE_FID`             | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                                   |
-| `SLACK_WEBHOOK_URL`                 | —                                           | Slack 웹훅 URL (UI에서 저장 가능)                    |
-| `SLACK_ENABLED`                     | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)           |
-| `NOTIFY_BATCH`                      | (true)                                      | 카테고리: 배치 결과 (기본 ON)                        |
-| `NOTIFY_SCHEDULE`                   | (true)                                      | 카테고리: 배치 예약 (기본 ON)                        |
-| `NOTIFY_USER`                       | (true)                                      | 카테고리: 유저 변경 (기본 ON)                        |
-| `NOTIFY_COUPON`                     | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                        |
-| `NOTIFY_SETTINGS`                   | (true)                                      | 카테고리: 설정 변경 (기본 ON)                        |
-| `NOTIFY_SYNC`                       | (true)                                      | 카테고리: 자동동기화 (기본 ON)                       |
-| `NOTIFY_REPORT`                     | (true)                                      | 카테고리: 정기보고서 (기본 ON)                       |
-| `AUTO_SYNC_ENABLED`                 | (OFF)                                       | `'true'` 면 자동 동기화 ON (UI/메뉴 토글과 동일)     |
-| `COUPON_SOURCE_URL`                 | `https://ks-rewards.com/api/codes`          | 주 동기화 소스 URL 교체 (ks-rewards 스키마)          |
-| `COUPON_SOURCE_URL_FALLBACK`        | `https://kingshotdata.kr/data/coupons.json` | 예비 소스 URL 교체 (kingshotdata 스키마, 주 실패 시) |
-| `SYNC_FAIL_AUTOOFF_STREAK`          | `168` (≈1주일 @1h)                          | 모든 소스 연속 실패 N회 시 자동 OFF (0이면 끔)       |
-| `SYNC_FAIL_STREAK`                  | —                                           | 자동 관리 (연속 실패 카운터, 성공 시 0)              |
-| `REPORT_ENABLED`                    | (ON)                                        | `'false'` 면 정기 보고서 OFF (그 외/미설정=기본 ON)  |
-| `REPORT_PERIOD`                     | `weekly`                                    | 보고서 주기 `weekly`/`biweekly`/`monthly`            |
-| `REPORT_EMAIL`                      | —                                           | 보고서 메일 수신자(쉼표구분). 비우면 Slack 만        |
-| `REPORT_TRIGGER_ENSURED`            | —                                           | 자동 관리 (self-heal 게이트 도장)                    |
-| `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용, **UTC ISO**)            |
-| `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, **UTC ISO**)            |
-| `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각(UTC ISO)·결과)         |
-| `LAST_REPORT_AT`                    | —                                           | 자동 기록 (마지막 정기 보고 시각, **UTC ISO**)       |
-| `BATCH_RL_RETRY_COUNT`              | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3)      |
+| 키                                  | 기본                                        | 설명                                                |
+| ----------------------------------- | ------------------------------------------- | --------------------------------------------------- |
+| `KINGSHOT_SALT`                     | (코드 기본값)                               | sign salt 교체                                      |
+| `KINGSHOT_BASE_URL`                 | `https://kingshot-giftcode.centurygame.com` | API 베이스                                          |
+| `KINGSHOT_VERIFY_PLAYER`            | (ON)                                        | `'false'` 면 fid 사전 로그인 검증 끔                |
+| `KINGSHOT_MAX_USERS`                | `200`                                       | 유저 등록 정원 (0=무제한)                           |
+| `KINGSHOT_COUPON_TTL_DAYS`          | `30`                                        | 쿠폰 자동만료 일수 (0=끔)                           |
+| `KINGSHOT_VALIDATE_FID`             | (첫 active 유저)                            | 쿠폰 검증에 쓸 fid                                  |
+| `SLACK_WEBHOOK_URL`                 | —                                           | Slack 웹훅 URL (UI에서 저장 가능)                   |
+| `SLACK_ENABLED`                     | (true)                                      | `'false'` 면 알림 OFF (UI 슬라이더와 동일)          |
+| `NOTIFY_BATCH`                      | (true)                                      | 카테고리: 배치 결과 (기본 ON)                       |
+| `NOTIFY_SCHEDULE`                   | (true)                                      | 카테고리: 배치 예약 (기본 ON)                       |
+| `NOTIFY_USER`                       | (true)                                      | 카테고리: 유저 변경 (기본 ON)                       |
+| `NOTIFY_COUPON`                     | (true)                                      | 카테고리: 쿠폰 변경 (기본 ON)                       |
+| `NOTIFY_SETTINGS`                   | (true)                                      | 카테고리: 설정 변경 (기본 ON)                       |
+| `NOTIFY_SYNC`                       | (true)                                      | 카테고리: 자동동기화 (기본 ON)                      |
+| `NOTIFY_REPORT`                     | (true)                                      | 카테고리: 정기보고서 (기본 ON)                      |
+| `AUTO_SYNC_ENABLED`                 | (OFF)                                       | `'true'` 면 자동 동기화 ON (UI/메뉴 토글과 동일)    |
+| `COUPON_SOURCE_URL`                 | `https://ks-rewards.com/api/codes`          | ks-rewards 소스 URL 교체 (3소스 합집합)             |
+| `COUPON_SOURCE_URL_LOOLOO`          | `.../api/redeem/codes?limit=100`            | looloo 소스 URL 교체 (3소스 합집합)                 |
+| `COUPON_SOURCE_URL_FALLBACK`        | `https://kingshotdata.kr/data/coupons.json` | kingshotdata 소스 URL 교체 (3소스 합집합)           |
+| `SYNC_FAIL_AUTOOFF_STREAK`          | `168` (≈1주일 @1h)                          | 모든 소스 연속 실패 N회 시 자동 OFF (0이면 끔)      |
+| `SYNC_FAIL_STREAK`                  | —                                           | 자동 관리 (연속 실패 카운터, 성공 시 0)             |
+| `REPORT_ENABLED`                    | (ON)                                        | `'false'` 면 정기 보고서 OFF (그 외/미설정=기본 ON) |
+| `REPORT_PERIOD`                     | `weekly`                                    | 보고서 주기 `weekly`/`biweekly`/`monthly`           |
+| `REPORT_EMAIL`                      | —                                           | 보고서 메일 수신자(쉼표구분). 비우면 Slack 만       |
+| `REPORT_TRIGGER_ENSURED`            | —                                           | 자동 관리 (self-heal 게이트 도장)                   |
+| `LAST_MANAGE_AT`                    | —                                           | 자동 기록 (관리 헤더 표시용, **UTC ISO**)           |
+| `LAST_BATCH_AT`                     | —                                           | 자동 기록 (마지막 배치 시각, **UTC ISO**)           |
+| `LAST_SYNC_AT` / `LAST_SYNC_RESULT` | —                                           | 자동 기록 (마지막 동기화 시각(UTC ISO)·결과)        |
+| `LAST_REPORT_AT`                    | —                                           | 자동 기록 (마지막 정기 보고 시각, **UTC ISO**)      |
+| `BATCH_RL_RETRY_COUNT`              | —                                           | 자동 관리 (RATE_LIMITED N차 재시도 카운터, 0~3)     |
 
 ## 자동 쿠폰 동기화 (옵션 · `Sync.js`)
 
@@ -290,22 +291,26 @@ burst 를 줄이거나 egress 를 GAS 밖(전용 IP)으로 분리.
 "아직 유효한" 신규 코드만** 자동 등록 + 배치한다. **기본 OFF** — 관리 UI 토글 또는 메뉴
 `🔄 동기화 ▸ 자동 동기화 ON/OFF` 로 켠다(매시간 주기). 주기 변경 시 토글 OFF→ON 으로 재설치해야 반영된다.
 
-**소스 = 주(primary) + 예비(fallback)** — 인프라가 독립이라 실패가 상관없음(uncorrelated):
+**소스 = 3곳 합집합(union)** — 인프라가 서로 독립이라 실패가 상관없음(uncorrelated):
 
-|      | 소스                                | 인프라                                      | 채택 기준                           |
-| ---- | ----------------------------------- | ------------------------------------------- | ----------------------------------- |
-| 주   | `ks-rewards.com/api/codes`          | Cloudflare 뒤 동적 API (신선·검증상태 명시) | `validation_status === 'validated'` |
-| 예비 | `kingshotdata.kr/data/coupons.json` | GitHub Pages 정적 (스테일하지만 초안정)     | `until >= 오늘`                     |
+| 소스           | 인프라                                      | 채택 기준                                 |
+| -------------- | ------------------------------------------- | ----------------------------------------- |
+| `ks-rewards`   | Cloudflare 뒤 동적 API (redeem 검증·고정밀) | `validation_status === 'validated'`       |
+| `looloo`       | CF 워커 (kingshot.net 추적·고재현)          | `is_active === true && status==='active'` |
+| `kingshotdata` | GitHub Pages 정적 (스테일하지만 초안정)     | `until >= 오늘`                           |
 
-폴백은 **주 소스 fetch/파싱 실패 시에만** 호출 — 주가 정상이면 코드 0개라도 예비 안 봄
-(스테일·오타 잡음 상시 혼입 방지). 둘 다 실패하면 그 회차만 조용히 스킵.
+**매 회차 3곳을 각각 독립 호출 → 성공한 소스들의 코드를 합집합(대소문자 무시 dedup).** 한 곳이 죽어도
+나머지로 진행(graceful degrade). ks-rewards(정밀)와 looloo(재현)는 상보적이라 서로 덮지 않고 합쳐서
+둘 신호 다 살린다. 소스별 필터가 1차 방어, 무효 코드는 **배치의 게임 API 응답이 최종 심판**(만료/사용됨
+→ 낭비 콜만, 오배송 없음). `source` 라벨은 성공 소스만 `+`로 결합(예: `ks-rewards+looloo`) → 한 소스가
+조용히 죽으면 로그·보고서에서 빠져 관측된다. **셋 다 실패해야** 그 회차 실패 처리.
 
-**동작:** 주→예비 소스 수집 → 시트에 없음 필터 → 후보를 `apiRegisterCoupon()` 에 위임
+**동작:** 3소스 합집합 수집 → 시트에 없음 필터 → 후보를 `apiRegisterCoupon()` 에 위임
 → 단건 검증·dedup·dead코드 캐시·debounce 배치를 기존 로직이 그대로 처리. 즉 **"사람이 손으로
 코드 친 것"과 동일한 경로** — 새로운 상태 오염 불가. 만료/오타 코드는 소스 필터 또는 우리 검증에서
 걸러져 캐시되므로 낭비 없음.
 
-**격리 보장 (두 소스가 다 죽어도 본체 무영향 — "꺼놨을 때"와 동일):**
+**격리 보장 (세 소스가 다 죽어도 본체 무영향 — "꺼놨을 때"와 동일):**
 
 - 전 과정 `try/catch` + **각 소스 fetch 도 독립 try/catch** — 네트워크/JSON/스키마/CF차단 등 어떤
   오류도 삼키고 트리거 밖으로 안 던짐. 한 소스 실패가 다른 소스·본체로 안 번짐
