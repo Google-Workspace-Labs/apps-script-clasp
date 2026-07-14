@@ -1,0 +1,811 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+<link href="https://cdn.datatables.net/1.10.24/css/dataTables.bootstrap4.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.10.24/js/dataTables.bootstrap4.min.js"></script>
+<style>
+#imagePreview {
+	width: 100%;
+	max-width: 80px;
+	height: auto;
+	overflow: hidden;
+}
+
+#imagePreview img {
+	width: 100%;
+}
+
+.modal-lg-custom {
+	max-width: 90% !important;
+}
+
+.img-container {
+	max-width: 100%;
+	max-height: 400px;
+	overflow: hidden;
+}
+
+.img-container img {
+	max-width: 100%;
+}
+
+.consumer-image {
+	width: 80px;
+	height: 80px;
+	object-fit: cover;
+}
+
+.edit-btn {
+	margin-right: 5px;
+}
+
+.container {
+	display: flex;
+	flex-wrap: wrap;
+	background: #ffffff;
+	margin-top: 15px;
+	border-radius: 10px;
+}
+
+#form-container {
+	flex: 1;
+	min-width: 300px;
+	max-width: 90%;
+	margin-right: 10px;
+}
+
+#records-container {
+	flex: 1;
+	min-width: 300px;
+	overflow-y: auto;
+	height: calc(100vh - 100px);
+	padding-left: 17px;
+}
+
+.table-responsive {
+	overflow-y: auto;
+}
+
+.form-group {
+	display: flex;
+	align-items: center;
+	margin-top: 17px;
+}
+
+.form-group label {
+	flex: 0 0 150px;
+	margin-bottom: 0;
+}
+
+.form-group input,
+.form-group select {
+	flex: 1;
+}
+
+/* Styling the scrollbar */
+#records-container::-webkit-scrollbar {
+	width: 8px;
+	/* Width of the scrollbar */
+}
+
+#records-container::-webkit-scrollbar-track {
+	background: #f1f1f1;
+	/* Track background color */
+	border-radius: 4px;
+}
+
+#records-container::-webkit-scrollbar-thumb {
+	background: #888;
+	/* Thumb color */
+	border-radius: 4px;
+	/* Rounded corners */
+}
+
+#records-container::-webkit-scrollbar-thumb:hover {
+	background: #555;
+	/* Thumb color on hover */
+}
+
+/* Optional: Add support for Firefox */
+#records-container {
+	scrollbar-width: thin;
+	/* Width for Firefox */
+	scrollbar-color: #888 #f1f1f1;
+	/* Thumb and track colors */
+	margin-top: 30px;
+}
+
+#imagePreview {
+	width: 100%;
+	max-width: 80px;
+	height: auto;
+	overflow: hidden;
+}
+
+#imagePreview img {
+	width: 100%;
+}
+
+.modal-lg-custom {
+	max-width: 90% !important;
+}
+
+.img-container {
+	max-width: 100%;
+	max-height: 400px;
+	overflow: hidden;
+}
+
+.img-container img {
+	max-width: 100%;
+}
+
+.image-wrapper {
+	position: relative;
+	display: inline-block;
+	margin: 10px;
+}
+
+.image-wrapper img {
+	width: 100px;
+	height: 100px;
+	object-fit: cover;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+}
+
+.image-wrapper button {
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	border: none;
+	background: red;
+	color: white;
+	width: 20px;
+	height: 20px;
+	text-align: center;
+	font-size: 14px;
+	line-height: 18px;
+	cursor: pointer;
+	border-radius: 50%;
+}
+
+#zoomedImage {
+	max-width: 100%;
+	max-height: 80vh;
+	border: 1px solid #ddd;
+	border-radius: 5px;
+}
+
+@keyframes blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+#consumerTableBody {
+	font-size: 14px;
+}
+</style>
+<div class="container" style="max-width:95%;">
+	<div id="records-container">
+		<div class="table-responsive">
+			<table id="consumerTable" class="table table-striped table-bordered">
+				<thead>
+					<tr>
+						<th>Name</th>
+						<th>Address</th>
+						<th>Mobile No</th>
+						<th>Email</th>
+						<th>Age</th>
+						<th>Gender</th>
+						<th>Images</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody id="consumerTableBody">
+				</tbody>
+			</table>
+		</div>
+	</div>
+</div>
+<!-- Modal for cropping -->
+<div class="modal fade" id="customerupdate" tabindex="-1" role="dialog" aria-labelledby="customerupdateLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg " role="document">
+		<div class="modal-content" style="padding-left:15px">
+			<div class="modal-header">
+				<h5 class="modal-title" id="customerupdateLabel">Update Consumer Data</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<div id="form-container">
+					<div class="text-center mb-4">
+						<p class="text-secondary">Easily upload consumer details along with multiple images.</p>
+					</div>
+					<form id="consumerForm">
+						<input type="hidden" id="rowIndex" name="rowIndex">
+						<input type="hidden" id="rowIndexdel" name="rowIndexdel">
+						<div class="form-group">
+							<label for="name">Name</label>
+							<input type="text" class="form-control" id="name" name="name" required>
+						</div>
+						<div class="form-group">
+							<label for="address">Address</label>
+							<input type="text" class="form-control" id="address" name="address" required>
+						</div>
+						<div class="form-group">
+							<label for="Mobile No">Mobile No</label>
+							<input type="text" class="form-control" id="mobileno" name="mobileno" required>
+						</div>
+						<div class="form-group">
+							<label for="Email">Email</label>
+							<input type="text" class="form-control" id="email" name="email" required>
+						</div>
+						<div class="form-group">
+							<label for="Age">Age</label>
+							<input type="text" class="form-control" id="age" name="age" required>
+						</div>
+						<div class="form-group">
+							<label for="gender">Gender</label>
+							<select class="form-control" id="gender" name="gender" required>
+								<option value="Male">Male</option>
+								<option value="Female">Female</option>
+								<option value="Transgender">Transgender</option>
+								<option value="Others">Others</option>
+							</select>
+						</div>
+						<div class="form-group">
+							<label for="imageContainer">Image</label>
+							<div>
+								<button type="button" class="btn btn-success" id="addImageButton">Add Image</button>
+							</div>
+							<div id="imageContainer" class="mt-2">
+								<!-- Dynamically added images will appear here -->
+							</div>
+						</div>
+						<div class="modbottom" style="float: right;margin-top: 25px;background: #ffffff;border-radius: 6px;">
+							<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+							<button type="submit" class="btn btn-success" id="submitbutton">Submit</button>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- Modal for cropping -->
+<div class="modal fade" id="cropperModal" tabindex="-1" role="dialog" aria-labelledby="cropperModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg " role="document">
+		<div class="modal-content" style="height: 637px;">
+			<div class="modal-header">
+				<h5 class="modal-title" id="cropperModalLabel">Crop Image</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body">
+				<div class="img-container">
+					<img id="imageToCrop" src="" alt="Image to crop">
+				</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+				<button type="button" class="btn btn-primary" id="cropAndSaveButton">Crop & Save</button>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- Zoom Modal -->
+<div class="modal fade" id="zoomModal" tabindex="-1" role="dialog" aria-labelledby="zoomModalLabel" aria-hidden="true">
+	<div class="modal-dialog modal-lg" role="document">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="zoomModalLabel">Zoomed Image</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+					<span aria-hidden="true">&times;</span>
+				</button>
+			</div>
+			<div class="modal-body text-center">
+				<img id="zoomedImage" src="" alt="Zoomed Image" style="max-width: 100%; height: 500px; border: 1px solid #ddd; border-radius: 5px;">
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+let cropper;
+let selectedFile; // Holds the current selected file for cropping
+let cropWidth = 200; // Default width
+let cropHeight = 200; // Default height
+let isEditing = false;
+const imageContainer = document.getElementById("imageContainer");
+const imageToCrop = document.getElementById("imageToCrop");
+const cropAndSaveButton = document.getElementById("cropAndSaveButton");
+const addImageButton = document.getElementById("addImageButton");
+const zoomedImage = document.getElementById("zoomedImage"); // For the zoom modal
+const refreshButton = document.getElementById('submitbutton');
+$(document).ready(function() {
+	dataTable = $('#consumerTable').DataTable({
+		responsive: true,
+		order: []
+	});
+	// Load initial data
+	loadConsumerData();
+});
+
+function loadConsumerData() {
+	google.script.run.withSuccessHandler(function(data) {
+		dataTable.clear();
+		data.forEach(function(row, index) {
+			const imageSlideshow = row.imageUrls.map(
+				(url, i) => `<img src="${url}" onclick="CallZoomImage('${url}')" class="consumer-image slide-${index}" alt="Image ${i + 1}" 
+                style="width: 100px; height: 100px; object-fit: cover; display: ${i === 0 ? 'block' : 'none'};">`).join('');
+			const slideshowHtml = `
+          <div class="slideshow-container" style="position: relative; width: 100px; height: 100px;">
+            ${imageSlideshow}
+            <button class="prev-slide" style="position: absolute; top: 50%; left: 0; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; cursor: pointer;" 
+                    onclick="changeSlide(${index}, -1)">❮</button>
+            <button class="next-slide" style="position: absolute; top: 50%; right: 0; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: white; border: none; padding: 5px; cursor: pointer;" 
+                    onclick="changeSlide(${index}, 1)">❯</button>
+          </div>
+        `;
+			dataTable.row.add([
+				row.name,
+				row.address,
+				row.mobileno,
+				row.email,
+				row.age,
+				row.gender,
+				slideshowHtml, `<div style="display: flex; gap: 10px;">
+                <button class="btn btn-primary btn-sm edit-btn" onclick="editRecord(${index + 1})">Edit</button>
+                <button class="btn btn-danger btn-sm edit-btn" onclick="DelRecord(${index + 1})">Delete</button>
+              </div>`
+			]).draw(false);
+			// Automatically start the slideshow for each row
+			startSlideshow(index, row.imageUrls.length);
+		});
+	}).getConsumerData();
+}
+// Function to handle slide changes
+function changeSlide(slideshowIndex, direction) {
+	const slides = document.querySelectorAll(`.slide-${slideshowIndex}`);
+	let currentIndex = Array.from(slides).findIndex((slide) => slide.style.display === 'block');
+	slides[currentIndex].style.display = 'none';
+	currentIndex = (currentIndex + direction + slides.length) % slides.length; // Wrap around
+	slides[currentIndex].style.display = 'block';
+}
+
+const slideshowIntervals = {}; // Store intervals for each slideshow
+
+function startSlideshow(slideshowIndex, totalSlides) {
+    let currentIndex = 0;
+    const slides = document.querySelectorAll(`.slide-${slideshowIndex}`);
+
+    if (slides.length === 0) return; // Prevent errors if no slides exist
+
+    // Clear any existing interval for this slideshow
+    if (slideshowIntervals[slideshowIndex]) {
+        clearInterval(slideshowIntervals[slideshowIndex]);
+    }
+
+    slideshowIntervals[slideshowIndex] = setInterval(() => {
+        slides[currentIndex].style.display = 'none'; // Hide current slide
+        currentIndex = (currentIndex + 1) % totalSlides; // Move to next slide
+        slides[currentIndex].style.display = 'block'; // Show new slide
+    }, 3000);
+}
+
+// Call slideshow for slide-0
+startSlideshow(0, 2); // Update totalSlides dynamically if needed
+
+
+function CallZoomImage(imageUrl) {
+	zoomedImage.src = imageUrl; // Set the source of the zoomed image
+	$("#zoomModal").modal("show"); // Open the zoom modal
+}
+
+function editRecord(rowIndex) {
+	refreshButton.disabled = false;
+	addImageButton.disabled = false;
+	$("#customerupdate").modal("show");
+	$('#rowIndex').val(rowIndex);
+	// Set the form to editing mode
+	isEditing = true;
+	// Fetch the row data from DataTable
+	const rowData = dataTable.row(rowIndex - 1).data(); // Adjust for zero-based indexing
+	// Populate the form fields
+	$('#name').val(rowData[0]);
+	$('#address').val(rowData[1]);
+	$('#mobileno').val(rowData[2]);
+	$('#email').val(rowData[3]);
+	$('#age').val(rowData[4]);
+	$('#gender').val(rowData[5]);
+	// Extract image URLs from the slideshow HTML
+	const imageUrls = [];
+	const tempDiv = document.createElement('div');
+	tempDiv.innerHTML = rowData[6]; // Parse the slideshow HTML
+	const imgElements = tempDiv.querySelectorAll('img');
+	imgElements.forEach((img) => {
+		imageUrls.push(img.src); // Add image URL to array
+	});
+	// Display images as Base64 with delete buttons
+	addImageButton.disabled = false;
+	populateImages(imageUrls);
+	const customerupdateLabel = document.getElementById("customerupdateLabel");
+	customerupdateLabel.innerHTML = "Update Consumer Data";
+	customerupdateLabel.style.color = "yellow"; // Set text color to yellow
+	customerupdateLabel.style.fontWeight = "bold"; // Make text bold
+	customerupdateLabel.style.fontSize = "18px"; // Set font size
+	customerupdateLabel.style.backgroundColor = "green"; // Optional: set background color for emphasis
+	customerupdateLabel.style.padding = "5px"; // Optional: add padding for better visual appeal
+	// Apply the blinking effect using CSS animation
+	customerupdateLabel.style.animation = "blink 5s infinite"; // 1s duration, infinite repeat
+	const submitButton = document.getElementById("submitbutton");
+	// Remove the 'btn-success' class and add the 'btn-danger' class
+	submitButton.classList.remove("btn-success", "btn-danger");
+	submitButton.classList.add("btn-warning");
+	// Update the form buttons
+	$('#submitbutton').text('Update');
+	$('#cancelEdit').show();
+	// Scroll to the form
+	$('html, body').animate({
+		scrollTop: $('#consumerForm').offset().top
+	}, 500);
+}
+
+function DelRecord(rowIndex) {
+	refreshButton.disabled = false;
+	addImageButton.disabled = false;
+	$("#customerupdate").modal("show");
+	$('#rowIndex').val(rowIndex + "del");
+
+	// Set the form to editing mode
+	isEditing = true;
+	// Fetch the row data from DataTable
+	const rowData = dataTable.row(rowIndex - 1).data(); // Adjust for zero-based indexing
+	// Populate the form fields
+	$('#name').val(rowData[0]);
+	$('#address').val(rowData[1]);
+	$('#mobileno').val(rowData[2]);
+	$('#email').val(rowData[3]);
+	$('#age').val(rowData[4]);
+	$('#gender').val(rowData[5]);
+	// Extract image URLs from the slideshow HTML
+	const imageUrls = [];
+	const tempDiv = document.createElement('div');
+	tempDiv.innerHTML = rowData[6]; // Parse the slideshow HTML
+	const imgElements = tempDiv.querySelectorAll('img');
+	imgElements.forEach((img) => {
+		imageUrls.push(img.src); // Add image URL to array
+	});
+	// Display images as Base64 with delete buttons
+	imageContainer.innerHTML = ""; // Clear existing images
+	imageUrls.forEach((imageUrl) => {
+		// Create the image wrapper
+		const imageWrapper = document.createElement("div");
+		imageWrapper.className = "image-wrapper";
+		imageWrapper.style.position = "relative";
+		imageWrapper.style.display = "inline-block";
+		imageWrapper.style.margin = "10px";
+		// Add the image
+		const imgElement = document.createElement("img");
+		imgElement.src = imageUrl; // Use image URL as src
+		imgElement.style.width = "100px";
+		imgElement.style.height = "100px";
+		imgElement.style.objectFit = "cover";
+		imgElement.style.cursor = "pointer";
+		// Add click event to open zoom modal
+		imgElement.addEventListener("click", function() {
+			zoomedImage.src = imageUrl; // Set the source of the zoomed image
+			$("#zoomModal").modal("show"); // Open the zoom modal
+		});
+		// Append elements to the wrapper
+		imageWrapper.appendChild(imgElement);
+		addImageButton.disabled = true;
+		imageContainer.appendChild(imageWrapper);
+		const customerupdateLabel = document.getElementById("customerupdateLabel");
+		customerupdateLabel.innerHTML = "Are You Sure want to delete The Record";
+		customerupdateLabel.style.color = "red"; // Set text color to yellow
+		customerupdateLabel.style.fontWeight = "bold"; // Make text bold
+		customerupdateLabel.style.fontSize = "18px"; // Set font size
+		customerupdateLabel.style.backgroundColor = "yellow"; // Optional: set background color for emphasis
+		customerupdateLabel.style.padding = "5px"; // Optional: add padding for better visual appeal
+		// Apply the blinking effect using CSS animation
+		customerupdateLabel.style.animation = "blink 3s infinite"; // 1s duration, infinite repeat
+		const submitButton = document.getElementById("submitbutton");
+		// Remove the 'btn-success' class and add the 'btn-danger' class
+		submitButton.classList.remove("btn-success", "btn-warning");
+		submitButton.classList.add("btn-danger");
+	});
+	// Update the form buttons
+	$('#submitbutton').text('Delete');
+	$('#cancelEdit').show();
+	// Scroll to the form
+	$('html, body').animate({
+		scrollTop: $('#consumerForm').offset().top
+	}, 500);
+}
+
+function populateImages(images) {
+	imageContainer.innerHTML = ""; // Clear existing images
+	// Fetch Base64 images via Apps Script
+	google.script.run.withSuccessHandler((base64Images) => {
+		base64Images.forEach((base64Image) => {
+			// Create the image wrapper
+			const imageWrapper = document.createElement("div");
+			imageWrapper.className = "image-wrapper";
+			imageWrapper.style.position = "relative";
+			imageWrapper.style.display = "inline-block";
+			imageWrapper.style.margin = "10px";
+			// Add the Base64 image
+			const imgElement = document.createElement("img");
+			imgElement.src = base64Image; // Use Base64 string as src
+			imgElement.style.width = "100px";
+			imgElement.style.height = "100px";
+			imgElement.style.objectFit = "cover";
+			imgElement.style.cursor = "pointer";
+			// Add a delete button
+			const deleteButton = document.createElement("button");
+			deleteButton.textContent = "X";
+			deleteButton.className = "btn btn-danger btn-sm";
+			deleteButton.style.position = "absolute";
+			deleteButton.style.top = "5px";
+			deleteButton.style.right = "5px";
+			deleteButton.style.borderRadius = "50%";
+			// Add click event to open zoom modal
+			imgElement.addEventListener("click", function() {
+				zoomedImage.src = base64Image; // Set the source of the zoomed image
+				$("#zoomModal").modal("show"); // Open the zoom modal
+			});
+			// Delete image on button click
+			deleteButton.addEventListener("click", () => {
+				imageContainer.removeChild(imageWrapper);
+			});
+			// Append elements to the wrapper
+			imageWrapper.appendChild(imgElement);
+			imageWrapper.appendChild(deleteButton);
+			imageContainer.appendChild(imageWrapper);
+		});
+	}).imageBase64Urls(images);
+}
+// Handle "Add Image" button
+addImageButton.addEventListener("click", function() {
+	const imageInput = document.createElement("input");
+	imageInput.type = "file";
+	imageInput.accept = "image/*";
+	imageInput.style.display = "none";
+	// Append input to body and trigger click
+	document.body.appendChild(imageInput);
+	imageInput.click();
+	// Remove input after use
+	imageInput.addEventListener("change", function(event) {
+		const files = event.target.files;
+		if(files && files.length > 0) {
+			selectedFile = files[0];
+			const reader = new FileReader();
+			reader.onload = function(e) {
+				imageToCrop.src = e.target.result;
+				// Fetch dynamic settings and open the cropper modal
+				$("#cropperModal").modal("show");
+			};
+			reader.readAsDataURL(files[0]);
+		}
+		document.body.removeChild(imageInput); // Cleanup
+	});
+});
+// Initialize cropper when the modal is shown
+$("#cropperModal").on("shown.bs.modal", function() {
+	cropper = new Cropper(imageToCrop, {
+		aspectRatio: cropWidth / cropHeight, // Use dynamic aspect ratio
+		viewMode: 1,
+	});
+});
+// Destroy cropper when the modal is hidden
+$("#cropperModal").on("hidden.bs.modal", function() {
+	if(cropper) {
+		cropper.destroy();
+		cropper = null;
+	}
+});
+// Handle cropping and add cropped image to container
+cropAndSaveButton.addEventListener("click", function() {
+	if(cropper) {
+		const croppedCanvas = cropper.getCroppedCanvas({
+			width: cropWidth, // Use dynamic width
+			height: cropHeight, // Use dynamic height
+		});
+		const croppedImage = croppedCanvas.toDataURL("image/png");
+		// Create a container for the cropped image
+		const imageWrapper = document.createElement("div");
+		imageWrapper.className = "image-wrapper";
+		imageWrapper.style.position = "relative";
+		imageWrapper.style.display = "inline-block";
+		imageWrapper.style.margin = "10px";
+		// Add the cropped image
+		const imgElement = document.createElement("img");
+		imgElement.src = croppedImage;
+		imgElement.style.width = "100px";
+		imgElement.style.height = "100px";
+		imgElement.style.objectFit = "cover";
+		imgElement.style.cursor = "pointer"; // Add pointer cursor
+		// Add a delete button
+		const deleteButton = document.createElement("button");
+		deleteButton.textContent = "X";
+		deleteButton.className = "btn btn-danger btn-sm";
+		deleteButton.style.position = "absolute";
+		deleteButton.style.top = "5px";
+		deleteButton.style.right = "5px";
+		deleteButton.style.borderRadius = "50%";
+		// Delete image on button click
+		deleteButton.addEventListener("click", function() {
+			imageContainer.removeChild(imageWrapper);
+		});
+		// Add click event to open zoom modal
+		imgElement.addEventListener("click", function() {
+			zoomedImage.src = croppedImage; // Set the source of the zoomed image
+			$("#zoomModal").modal("show"); // Open the zoom modal
+		});
+		// Append elements to the wrapper
+		imageWrapper.appendChild(imgElement);
+		imageWrapper.appendChild(deleteButton);
+		imageContainer.appendChild(imageWrapper);
+		// Close the cropper modal
+		$("#cropperModal").modal("hide");
+	}
+});
+
+
+$('#consumerForm').submit(function(event) {
+    event.preventDefault();
+    refreshButton.innerHTML = 'Please Wait...';
+    refreshButton.disabled = true;
+    addImageButton.disabled = true;
+
+    const name = $('#name').val();
+    const mobileno = $('#mobileno').val();
+    const rowIndex = $('#rowIndex').val();
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    
+    const base64DataArray = [];
+    $('#imageContainer img').each(function(index, img) {
+        const base64Data = img.src.split(',')[1]; // Extract Base64 data
+        const fileName = `${name}_${mobileno}_${currentDate}_image${index + 1}.jpg`;
+        base64DataArray.push({ base64Data, fileName });
+    });
+
+    // If no images are selected, submit the form immediately
+    if (base64DataArray.length === 0) {
+        submitFormWithoutImages(rowIndex);
+        return;
+    }
+
+    // Otherwise, upload images first
+    const images = [];
+    let uploadCount = 0;
+    
+    base64DataArray.forEach(({ base64Data, fileName }) => {
+        google.script.run
+            .withSuccessHandler(function(imageUrl) {
+                images.push(imageUrl);
+                uploadCount++;
+
+                if (uploadCount === base64DataArray.length) {
+                    submitFormWithImages(rowIndex, images);
+                }
+            })
+            .uploadFile(base64Data, fileName);
+    });
+});
+
+
+function submitFormWithoutImages(rowIndex) {
+    const oldImages = getOldImages(rowIndex); // Fetch old image URLs
+    const data = {
+        rowIndex: rowIndex,
+        name: $('#name').val(),
+        address: $('#address').val(),
+        mobileno: $('#mobileno').val(),
+        email: $('#email').val(),
+        gender: $('#gender').val(),
+        age: $('#age').val(),
+        userid: localStorage.getItem("userid"),
+        images: [], // No new images
+        oldImages: oldImages // Send old images for deletion
+    };
+
+    google.script.run
+        .withSuccessHandler(submitsuccess)
+        .submitForm(data);
+}
+
+function submitFormWithImages(rowIndex, images) {
+
+    const oldImages = getOldImages(rowIndex); // Fetch old image URLs
+    const data = {
+        rowIndex: rowIndex,
+        name: $('#name').val(),
+        address: $('#address').val(),
+        mobileno: $('#mobileno').val(),
+        email: $('#email').val(),
+        gender: $('#gender').val(),
+        age: $('#age').val(),
+        userid: localStorage.getItem("userid"),
+        images: images, // New images
+        oldImages: oldImages // Send old images for deletion
+    };
+
+    google.script.run
+        .withSuccessHandler(submitsuccess)
+        .submitForm(data);
+}
+
+// Function to fetch old image URLs from the form (Modify as needed)
+function getOldImages(rowIndex) {
+    let rowIndexnum = rowIndex.toString().replace(/\D/g, '');
+    const rowData = dataTable.row(rowIndexnum - 1).data(); // Get row data
+    const oldImages = [];
+    // Convert rowData (HTML content) into a temporary DOM element
+    const tempDiv = document.createElement("div");
+
+    tempDiv.innerHTML = rowData[6]; 
+    
+    // Find all images inside the div and extract their src attributes
+    $(tempDiv).find("img").each(function() {
+        oldImages.push($(this).attr("src"));
+    });
+    
+    return oldImages;
+}
+
+
+
+
+function submitsuccess(result) {
+	refreshButton.innerHTML = 'Submit';
+	refreshButton.disabled = false;
+	addImageButton.disabled = false;
+	if (result === 'inserted') {
+		toastr.success('Inserted Successfully.');
+		resetForm();
+		loadConsumerData();
+	} else if (result === 'deleted') {
+		toastr.error('Deleted Successfully. dd');
+		resetForm();
+		loadConsumerData();
+	} else if (result === 'updated') {
+		toastr.warning('Updated Successfully.up');
+		resetForm();
+		loadConsumerData();
+	} else {
+		toastr.error('An error occurred. Please try again.');
+	}
+	$("#customerupdate").modal("hide");
+}
+
+function resetForm() {
+	isEditing = false;
+	$('#consumerForm')[0].reset();
+	$('#rowIndex').val('');
+	$('#imagePreview').empty();
+	croppedImageDataURL = null;
+	imageContainer.innerHTML = "";
+	$('#submitbutton').text('Submit');
+	$('#cancelEdit').hide();
+	$('#image').prop('required', true);
+}
+$('#cancelEdit').click(function() {
+	resetForm();
+});
+</script>
+<?!= include('footer'); ?>

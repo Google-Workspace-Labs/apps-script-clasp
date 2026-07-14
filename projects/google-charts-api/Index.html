@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>부서별 급여 차트</title>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script>
+      // 초기 데이터를 템플릿에서 가져옴
+      const initialData = JSON.parse('<?= initialData ?>');
+      let refreshIntervalId = null;
+      const REFRESH_INTERVAL = 5 * 60 * 1000; // 5분마다 새로고침 (밀리초 단위)
+      
+      google.charts.load('current', { packages: ['corechart'] });
+      google.charts.setOnLoadCallback(() => {
+        drawChart(initialData);
+        startAutoRefresh();
+      });
+
+      function drawChart(data) {
+        if (!data || data.length === 0) {
+          console.error("❌ 차트 데이터가 없습니다.");
+          document.getElementById("chart_div").innerHTML = 
+              "<p style='text-align:center;color:#999'>표시할 데이터가 없습니다.</p>";
+          return;
+        }
+
+        let dataTable = new google.visualization.DataTable();
+        dataTable.addColumn("string", "부서");
+        dataTable.addColumn("number", "총 급여");
+
+        let salaryMap = {};
+        data.forEach(row => {
+          if (!salaryMap[row.department]) {
+            salaryMap[row.department] = 0;
+          }
+          salaryMap[row.department] += row.salary;
+        });
+
+        console.log("📊 변환된 차트 데이터:", salaryMap);
+        Object.keys(salaryMap).forEach(dept => {
+          dataTable.addRow([dept, salaryMap[dept]]);
+        });
+
+        const options = {
+          title: "부서별 급여 합계",
+          titleTextStyle: { fontSize: 18, bold: true },
+          colors: ['#4285F4', '#DB4437', '#F4B400', '#0F9D58', '#AB47BC', '#33A02C'],
+          is3D: false,
+          pieHole: 0.4,
+          pieSliceText: 'percentage',
+          tooltip: { showColorCode: true },
+          legend: { position: 'right', alignment: 'center' },
+          chartArea: { width: '80%', height: '80%' }
+        };
+
+        const chart = new google.visualization.PieChart(document.getElementById("chart_div"));
+        chart.draw(dataTable, options);
+        
+        window.addEventListener('resize', function() {
+          chart.draw(dataTable, options);
+        });
+
+        // 마지막 업데이트 시간 표시
+        updateLastRefreshTime();
+      }
+      
+      // 데이터 새로고침 함수
+      function refreshData() {
+        document.getElementById("refresh-btn").disabled = true;
+        document.getElementById("refresh-btn").textContent = "로딩 중...";
+        
+        google.script.run
+          .withSuccessHandler(function(data) {
+            drawChart(data);
+            document.getElementById("refresh-btn").disabled = false;
+            document.getElementById("refresh-btn").textContent = "데이터 새로고침";
+          })
+          .withFailureHandler(function(error) {
+            console.error("데이터 새로고침 실패:", error);
+            document.getElementById("refresh-btn").disabled = false;
+            document.getElementById("refresh-btn").textContent = "데이터 새로고침";
+            alert("데이터를 새로고침하는 중 오류가 발생했습니다.");
+          })
+          .getData();
+      }
+
+      // 자동 새로고침 시작
+      function startAutoRefresh() {
+        if (refreshIntervalId) {
+          clearInterval(refreshIntervalId);
+        }
+        
+        refreshIntervalId = setInterval(function() {
+          console.log("🔄 자동 새로고침 실행 중...");
+          google.script.run
+            .withSuccessHandler(function(data) {
+              drawChart(data);
+            })
+            .withFailureHandler(function(error) {
+              console.error("자동 새로고침 실패:", error);
+            })
+            .getData();
+        }, REFRESH_INTERVAL);
+        
+        // 자동 새로고침 상태 업데이트
+        document.getElementById("auto-refresh-status").textContent = "활성화됨";
+        document.getElementById("auto-refresh-toggle").textContent = "자동 새로고침 중지";
+      }
+
+      // 자동 새로고침 중지
+      function stopAutoRefresh() {
+        if (refreshIntervalId) {
+          clearInterval(refreshIntervalId);
+          refreshIntervalId = null;
+          
+          // 자동 새로고침 상태 업데이트
+          document.getElementById("auto-refresh-status").textContent = "비활성화됨";
+          document.getElementById("auto-refresh-toggle").textContent = "자동 새로고침 시작";
+        }
+      }
+
+      // 자동 새로고침 토글
+      function toggleAutoRefresh() {
+        if (refreshIntervalId) {
+          stopAutoRefresh();
+        } else {
+          startAutoRefresh();
+        }
+      }
+
+      // 마지막 업데이트 시간 표시
+      function updateLastRefreshTime() {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        document.getElementById("last-refresh-time").textContent = timeString;
+      }
+    </script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      h2 {
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .refresh-controls {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 15px;
+      }
+      .status-info {
+        font-size: 14px;
+        color: #666;
+        margin-left: 20px;
+      }
+      button {
+        padding: 8px 16px;
+        background-color: #4285F4;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background-color: #3367D6;
+      }
+      button:disabled {
+        background-color: #cccccc;
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>부서별 급여 합계</h2>
+      <div id="chart_div" style="width: 100%; height: 500px;"></div>
+      <div class="refresh-controls">
+        <button id="refresh-btn" onclick="refreshData()">데이터 새로고침</button>
+        <button id="auto-refresh-toggle" onclick="toggleAutoRefresh()">자동 새로고침 중지</button>
+        <div class="status-info">
+          마지막 업데이트: <span id="last-refresh-time">-</span>
+          <br>
+          자동 새로고침: <span id="auto-refresh-status">활성화됨</span> (5분마다)
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

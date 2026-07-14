@@ -1,0 +1,220 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .dashboard-container {
+      padding: 20px;
+    }
+    .chart-container {
+      margin-top: 20px;
+    }
+    .card {
+      margin-bottom: 20px;
+    }
+    .table-container {
+      margin-top: 20px;
+    }
+  </style>
+<div class="dashboard-container">
+  <h1 class="text-center">Consumer Dashboard</h1>
+  <div class="row">
+    <!-- Messages by User Chart (left) -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          Messages by User
+        </div>
+        <div class="card-body">
+          <!-- Chart for messages by user will be placed here -->
+          <canvas id="messageCountChart"></canvas>
+        </div>
+      </div>
+  </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          Follow-Up Statistics (Day Wise)
+        </div>
+        <div class="card-body">
+          <canvas id="followUpChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="row">
+     <!-- Total Consumer Count (right) -->
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          Total Consumers
+        </div>
+        <div class="card-body" style="max-width: 400px; height: 333px;">
+          <h2 id="totalConsumerCount"></h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          Message Sent Modes
+        </div>
+        <div class="card-body">
+          <canvas id="messageModesChart" style="max-width: 400px; max-height: 300px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+   
+  document.addEventListener("DOMContentLoaded", () => {
+    // Fetch and populate data
+    google.script.run.withSuccessHandler(renderDashboard).getDashboardData();
+
+    function renderDashboard(data) {
+      console.log("Data received:", data);  // Log the data to check its structure
+
+      // Check if data is valid
+      if (!data || !data.followUpStats || !data.followUpStats.labels || !data.followUpStats.data) {
+        console.error("Follow-up stats data is missing or invalid.");
+        return;
+      }
+
+      // Render charts
+      renderFollowUpChart(data.followUpStats);
+      renderMessageModeChart(data.messageModes);
+      renderMessageCountChart(data.messageCounts);
+      renderTotalConsumerCount(data.totalConsumers);
+
+      // Optional: If you want to log the data for debugging
+      console.log("Message Counts by User:", data.messageCounts);
+      console.log("Total Consumers:", data.totalConsumers);
+    }
+
+function renderFollowUpChart(stats) {
+  // Sort stats.labels and stats.data by date (assuming dd/mm/yyyy format)
+  const sortedStats = stats.labels
+    .map((label, index) => ({ date: label, count: stats.data[index] }))
+    .sort((a, b) => {
+      const [dayA, monthA, yearA] = a.date.split('/').map(Number);
+      const [dayB, monthB, yearB] = b.date.split('/').map(Number);
+      return new Date(yearA, monthA - 1, dayA) - new Date(yearB, monthB - 1, dayB);
+});
+
+  const sortedLabels = sortedStats.map(item => item.date);
+  const sortedData = sortedStats.map(item => item.count);
+
+  // Create the bar chart
+  new Chart(document.getElementById('followUpChart'), {
+    type: 'bar',
+    data: {
+      labels: sortedLabels,
+      datasets: [{
+        label: 'Follow-Ups (Day Wise)',
+        data: sortedData,
+        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          title: { text: 'Days', display: true },
+          ticks: { autoSkip: false }
+        },
+        y: {
+          title: { text: 'Follow-Ups', display: true },
+          beginAtZero: true
+        }
+      },
+      plugins: {
+        legend: { display: true }
+      }
+    }
+  });
+}
+
+function renderMessageModeChart(data) {
+  const ctx = document.getElementById('messageModesChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: data.labels,
+      datasets: [{
+        data: data.data,
+        backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'],
+        hoverBackgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false, // Allows the chart to adapt to the container size
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: {
+              size: 12 // Adjust the font size for legend labels
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+    function renderMessageCountChart(data) {
+      if (!data || !data.labels || !data.data) {
+        console.error("Message count data is missing or invalid.");
+        return;
+      }
+
+      new Chart(document.getElementById('messageCountChart'), {
+        type: 'bar',
+        data: {
+          labels: data.labels,
+          datasets: [{
+            label: 'Messages by User',
+            data: data.data,
+            backgroundColor: 'rgba(153, 102, 255, 0.2)',
+            borderColor: 'rgba(153, 102, 255, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    function renderTotalConsumerCount(total) {
+      const totalConsumerCount = document.getElementById('totalConsumerCount');
+      totalConsumerCount.textContent = total;  // Display total consumer count
+    }
+  });
+</script>
+
+<?!= include('footer'); ?>
+
+
+
+
+

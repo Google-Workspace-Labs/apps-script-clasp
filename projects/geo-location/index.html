@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top" />
+    <?!= include('styles'); ?>
+  </head>
+  <body>
+    <div class="container">
+      <h1>내 현재 위치 확인</h1>
+      <button id="getLocation">
+        위치 정보 가져오기
+        <span class="loader" id="loader"></span>
+      </button>
+      <div id="result">버튼을 클릭하여 위치 정보를 가져오세요.</div>
+      <div id="statusMessage" style="margin-top: 15px; color: #666"></div>
+    </div>
+
+    <script>
+      const getLocationBtn = document.getElementById('getLocation');
+      const resultDiv = document.getElementById('result');
+      const statusMessageDiv = document.getElementById('statusMessage');
+      const loader = document.getElementById('loader');
+      let watchId = null; // watchPosition ID를 저장할 변수
+
+      getLocationBtn.addEventListener('click', () => {
+        resultDiv.innerHTML = '<span class="loading">위치 정보를 가져오는 중...</span>';
+        statusMessageDiv.textContent = ''; // 상태 메시지 초기화
+        loader.style.display = 'inline-block'; // 로딩 스피너 표시
+
+        // 이전에 watchPosition이 실행 중이면 중지합니다.
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+          console.log('이전 watchPosition이 중지되었습니다.');
+        }
+
+        if (navigator.geolocation) {
+          const options = {
+            enableHighAccuracy: true, // 높은 정확도 요청
+            timeout: 10000, // 10초 내에 응답 없으면 타임아웃
+            maximumAge: 0, // 캐시된 위치 대신 항상 최신 위치 정보 요청
+          };
+
+          watchId = navigator.geolocation.watchPosition(showPosition, errorPosition, options);
+
+          // 30초 후에 위치 감시를 중지하는 setTimeout
+          setTimeout(() => {
+            if (watchId !== null) {
+              navigator.geolocation.clearWatch(watchId);
+              watchId = null;
+              statusMessageDiv.textContent = '30초가 경과하여 위치 감시가 중지되었습니다.';
+              console.log('30초 경과: 위치 감시가 중지되었습니다.');
+            }
+          }, 30000); // 30초 (30000 밀리초)
+        } else {
+          resultDiv.innerHTML =
+            '<span class="error">이 브라우저는 지오로케이션을 지원하지 않습니다.</span>';
+          loader.style.display = 'none'; // 로딩 스피너 숨김
+        }
+      });
+
+      /**
+       * 위치 정보를 성공적으로 가져왔을 때 호출되는 콜백 함수
+       * @param {GeolocationPosition} position - GeolocationPosition 객체
+       */
+      function showPosition(position) {
+        console.log('위치 정보 수신:', position);
+        loader.style.display = 'none'; // 로딩 스피너 숨김
+        statusMessageDiv.textContent = '위치 정보 업데이트 중...';
+
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+        const accuracy = position.coords.accuracy;
+        const speed = position.coords.speed; // null일 수 있음
+        const timestamp = new Date(position.timestamp).toLocaleString();
+
+        resultDiv.innerHTML = `
+                <p><span class="info-label">위도:</span> ${lat.toFixed(6)}</p>
+                <p><span class="info-label">경도:</span> ${lon.toFixed(6)}</p>
+                <p><span class="info-label">정확도:</span> 약 ${accuracy.toFixed(2)} 미터</p>
+                <p><span class="info-label">속도:</span> ${speed !== null ? speed.toFixed(2) + ' m/s' : '알 수 없음'}</p>
+                <p><span class="info-label">업데이트 시각:</span> ${timestamp}</p>
+            `;
+
+        // Google Apps Script 서버로 위치 데이터 전송 (google.script.run 사용)
+        google.script.run
+          .withSuccessHandler(function (response) {
+            console.log('서버 응답:', response);
+          })
+          .withFailureHandler(function (error) {
+            console.error('서버 전송 실패:', error);
+            statusMessageDiv.textContent = '서버 전송 실패: ' + error.message;
+          })
+          .processLocationData({
+            latitude: lat,
+            longitude: lon,
+            accuracy: accuracy,
+            speed: speed,
+            timestamp: position.timestamp,
+          });
+      }
+
+      /**
+       * 위치 정보 가져오기 실패 시 호출되는 콜백 함수
+       * @param {GeolocationPositionError} err - GeolocationPositionError 객체
+       */
+      function errorPosition(err) {
+        loader.style.display = 'none'; // 로딩 스피너 숨김
+        let errorMessage = '';
+        switch (err.code) {
+          case err.PERMISSION_DENIED:
+            errorMessage = '위치 정보 사용 권한이 거부되었습니다.';
+            break;
+          case err.POSITION_UNAVAILABLE:
+            errorMessage = '위치 정보를 사용할 수 없습니다.';
+            break;
+          case err.TIMEOUT:
+            errorMessage = '위치 정보를 가져오는 요청 시간이 초과되었습니다.';
+            break;
+          case err.UNKNOWN_ERROR:
+            errorMessage = '알 수 없는 오류가 발생했습니다.';
+            break;
+          default:
+            errorMessage = '알 수 없는 오류가 발생했습니다.';
+        }
+        resultDiv.innerHTML = `<span class="error">오류: ${errorMessage}</span>`;
+        statusMessageDiv.textContent = `오류 발생: ${err.message}`;
+        console.error('위치 정보 오류:', err);
+      }
+    </script>
+  </body>
+</html>

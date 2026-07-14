@@ -1,0 +1,131 @@
+<?!= include('header'); ?>
+  <a style="display:none" id="pageURL" href="" target="_top">Link</a>
+  <input type="text" class="form-control" id="urllink" name="urllink" value="<?= urllink; ?>" style="display:none;">
+  <input type="text" class="form-control" id="currentpage" name="currentpage" value="<?= currentpage; ?>" style="display:none;">
+
+
+<style>
+  body {
+    background-color: #f8f9fa;
+  }
+  .dashboard-container {
+    padding: 20px;
+  }
+  .chart-container {
+    margin-top: 20px;
+  }
+  .card {
+    margin-bottom: 20px;
+  }
+  .table-container {
+    margin-top: 20px;
+  }
+</style>
+
+<div class="dashboard-container">
+  <h1 class="text-center">User Dashboard</h1>
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          My Follow-Up Statistics (Day Wise)
+        </div>
+        <div class="card-body">
+          <canvas id="userFollowUpChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          My Message Sent Modes
+        </div>
+        <div class="card-body">
+          <canvas id="userMessageModesChart" style="max-width: 400px; max-height: 300px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          My Total Messages
+        </div>
+        <div class="card-body">
+          <h2 id="userTotalMessages"></h2>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Include Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const loggedInUserId = localStorage.getItem("userid");
+
+    if (!loggedInUserId) {
+      alert("User not logged in!");
+      return;
+    }
+
+    // Fetch data for the logged-in user
+    google.script.run.withSuccessHandler(renderUserDashboard).getUserDashboardData(loggedInUserId);
+
+    function renderUserDashboard(data) {
+      console.log("User Data:", data);
+
+      renderUserFollowUpChart(data.followUpStats);
+      renderUserMessageModeChart(data.messageModes);
+      document.getElementById("userTotalMessages").textContent = data.totalMessages;
+    }
+
+    function renderUserFollowUpChart(stats) {
+      new Chart(document.getElementById("userFollowUpChart"), {
+        type: "bar",
+        data: {
+          labels: stats.labels,
+          datasets: [{
+            label: "My Follow-Ups",
+            data: stats.data,
+            backgroundColor: "rgba(75, 192, 192, 0.2)",
+            borderColor: "rgba(75, 192, 192, 1)",
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { title: { text: "Days", display: true } },
+            y: { title: { text: "Follow-Ups", display: true }, beginAtZero: true }
+          },
+          plugins: { legend: { display: true } }
+        }
+      });
+    }
+
+    function renderUserMessageModeChart(data) {
+      new Chart(document.getElementById("userMessageModesChart"), {
+        type: "pie",
+        data: {
+          labels: data.labels,
+          datasets: [{
+            data: data.data,
+            backgroundColor: ["#FF6384", "#36A2EB", "#FFCE56", "#4BC0C0", "#9966FF", "#FF9F40"]
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom" } }
+        }
+      });
+    }
+  });
+</script>
+
+<?!= include('footer'); ?>
