@@ -70,7 +70,7 @@ function requireSheet_(logicalName) {
 
 /**
  * 시트가 열릴 때마다 실행됨(Simple Trigger).
- *   - 메뉴 4그룹만 빌드: 🚀 Setup / ▶ 실행 / 🛠 관리 / 🔍 진단
+ *   - 메뉴 그룹 빌드: 🌐 Language / 🚀 Setup / ▶ 실행 / 🛠 관리 / 🔄 동기화 / 📊 보고서 / 🔍 진단
  *
  * 자동 시트 생성은 의도적으로 하지 않음:
  *   - Simple Trigger 는 권한이 제한적이라 첫 사용자는 try/catch 로 silent fail 가능
@@ -183,7 +183,6 @@ function setMenuLang_(lang) {
  */
 function quickSetupWizard() {
   const ui = SpreadsheetApp.getUi();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const ml = getConfig().menuLang;
   const editorUrl = `https://script.google.com/home/projects/${ScriptApp.getScriptId()}/edit`;
 
@@ -276,8 +275,6 @@ function quickSetupWizard() {
     .setHeight(540);
 
   ui.showModalDialog(html, '🚀 Quick Setup');
-  // 표시 자체는 부수 효과 없음 — ss 참조는 향후 확장(첫 active 유저 체크 등)에 대비
-  void ss;
 }
 
 /** setupSheets 의 silent 변형: 토스트/얼럿 없이 생성된 시트명 배열만 반환. */
@@ -1868,6 +1865,6 @@ function getValidateFid_() {
 // TODO (향후 개선)
 // ============================================================
 // TODO: 관리자 권한 분리 (Session.getEffectiveUser 기반)
-// (DONE: 자동 쿠폰 동기화(주=ks-rewards.com + 예비=kingshotdata.kr) — Sync.js, 옵션 레이어/기본 OFF)
+// (DONE: 자동 쿠폰 동기화(3소스 union: ks-rewards + looloo + kingshotdata) — Sync.js, 옵션 레이어/기본 OFF)
 // (DONE: Telegram → Slack 단일 채널로 정착)
 // (DONE: 대량 처리 자동 이어실행 — stoppedByTime 후 자동 재예약 + RATE_LIMITED 자동 N차 재시도)

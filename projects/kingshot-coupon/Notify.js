@@ -42,7 +42,7 @@ const NOTIFY_COLORS = {
  * 통합 알림 dispatcher.
  * @param {Object} embed    내부 embed 포맷
  * @param {string} target   진단 로그용 식별자 (예: 'batch', 'webhook', 'user-register')
- * @param {string} [category] 'batch'|'schedule'|'user'|'coupon'|'settings'
+ * @param {string} [category] 'batch'|'schedule'|'user'|'coupon'|'settings'|'sync'|'report'
  *   카테고리가 명시되고 해당 토글이 OFF 면 전송 skip.
  *   omit 하면 카테고리 게이트 통과(채널 검증용 메시지 등).
  */

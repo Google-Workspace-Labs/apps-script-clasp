@@ -112,7 +112,7 @@ function safeApi_(name, fn) {
 }
 
 /**
- * safeApi_ + LockService 콤보 — 5개 api 함수의 동일 패턴 추출.
+ * safeApi_ + LockService 콤보 — 6개 api 함수의 동일 패턴 추출.
  * lock 획득 실패 시 "서버 바쁨" 메시지로 graceful degradation.
  * @param {string} name  api 함수명 (system_logs source 로 사용)
  * @param {Function} fn  실행 본문 — lock 보유 중에 호출됨, finally 에서 자동 release
@@ -309,7 +309,6 @@ function apiToggleUser(fid, password) {
     const next = !user.active;
     const nick = user.nickname || '(닉네임 없음)';
     const cleanFid = String(fid).trim();
-    const fmtKr = (b) => (b ? '활성' : '비활성');
     const fmtEn = (b) => (b ? 'active' : 'inactive');
     const sheet = requireSheet_('users');
     sheet.getRange(user.row, COL.users.active).setValue(next);
@@ -353,7 +352,6 @@ function apiToggleCoupon(code, password) {
     const prev = c.enabled;
     const next = !c.enabled;
     const cleanCode = String(code).trim();
-    const fmtKr = (b) => (b ? '활성' : '비활성');
     const fmtEn = (b) => (b ? 'enabled' : 'disabled');
     const sheet = requireSheet_('coupons');
     sheet.getRange(c.row, COL.coupons.enabled).setValue(next);
@@ -439,8 +437,8 @@ function apiListManage() {
       coupons,
       invalidHiddenCount, // UI 에서 숨긴 INVALID(오타) 코드 개수 — 정리 칩 표시용
       // 헤더 표시용 "마지막 사용시각" — 시트 안 보는 사용자용
-      lastUserReg: fmtTs_(maxCreated_(usersRaw)), // 유저 created 최댓값
-      lastCouponReg: fmtTs_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
+      lastUserReg: tsToIso_(maxCreated_(usersRaw)), // 유저 created 최댓값
+      lastCouponReg: tsToIso_(maxCreated_(couponsRaw)), // 쿠폰 created 최댓값
       lastManage: props.LAST_MANAGE_AT || '',
       lastBatch: props.LAST_BATCH_AT || '', // 배치 신선도 표시용
       slackSet: !!config.slackWebhookUrl, // URL 자체는 노출하지 않음(비밀)
@@ -593,7 +591,7 @@ function apiSetSlackLang(lang, password) {
   });
 }
 
-/** 알림 카테고리 6개 (batch/schedule/user/coupon/settings/sync) 의 개별 토글 */
+/** 알림 카테고리 7개 (batch/schedule/user/coupon/settings/sync/report) 의 개별 토글 */
 const NOTIFY_CATEGORIES = ['batch', 'schedule', 'user', 'coupon', 'settings', 'sync', 'report'];
 const NOTIFY_PROP_KEYS = {
   batch: 'NOTIFY_BATCH',
@@ -644,11 +642,6 @@ function maxCreated_(rows) {
   return max;
 }
 
-/** Date → UTC ISO 문자열 또는 '' (web client 가 접속자 현지시간으로 포맷) */
-function fmtTs_(date) {
-  return tsToIso_(date);
-}
-
 /** 마지막 관리 액션 시각을 Script Property 에 기록 (UTC ISO 단일 원천) */
 function touchManage_() {
   PropertiesService.getScriptProperties().setProperty('LAST_MANAGE_AT', tsNow_());
@@ -672,7 +665,6 @@ function apiSetCouponTtl(days, password) {
     touchManage_();
 
     // 표시 포맷: Slack/UI 는 한국어 + 끔, 로그는 영문 (`days`/`off`/`unset`)
-    const fmtKr = (v) => (v === null ? '(미설정)' : v === 0 ? '끔' : `${v}일`);
     const fmtEn = (v) => (v === null ? 'unset' : v === 0 ? 'off' : `${v} days`);
 
     logSystem_('INFO', 'settings-ttl', `TTL: ${fmtEn(prevN)} → ${fmtEn(n)}`, '');

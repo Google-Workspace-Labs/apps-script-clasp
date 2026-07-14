@@ -39,7 +39,7 @@
  *   - COUPON_SOURCE_URL       : ks-rewards 소스 URL (미설정 시 아래 기본 상수)
  *   - COUPON_SOURCE_URL_LOOLOO : looloo 소스 URL (미설정 시 아래 기본 상수)
  *   - COUPON_SOURCE_URL_FALLBACK : kingshotdata 소스 URL (미설정 시 아래 기본 상수)
- *   - LAST_SYNC_AT            : 마지막 동기화 시각(KST)
+ *   - LAST_SYNC_AT            : 마지막 동기화 시각(UTC ISO)
  *   - LAST_SYNC_RESULT        : 마지막 동기화 결과 요약(표시용)
  *   - SYNC_FAIL_STREAK        : 연속 실패 횟수(자동 관리, 성공 시 0) — 자동 OFF 백스톱용
  *   - SYNC_FAIL_AUTOOFF_STREAK : 자동 OFF 임계값(미설정 시 168=1주일, 0이면 백스톱 끔)
@@ -48,7 +48,7 @@
 const COUPON_SOURCE_URL_DEFAULT = 'https://ks-rewards.com/api/codes'; // ks-rewards(검증)
 const COUPON_SOURCE_URL_LOOLOO_DEFAULT =
   'https://my-discord-bot2.looloo90.workers.dev/api/redeem/codes?limit=100'; // looloo(라이브)
-const COUPON_SOURCE_URL_FALLBACK_DEFAULT = 'https://kingshotdata.kr/data/coupons.json'; // kingshotdata(예비)
+const COUPON_SOURCE_URL_FALLBACK_DEFAULT = 'https://kingshotdata.kr/data/coupons.json'; // kingshotdata(정적)
 const SYNC_TRIGGER_HANDLER = 'syncCouponsScheduled';
 const SYNC_INTERVAL_HOURS = 1; // 매시간(24회/일) — 소스 폴링만, 킹샷 API 부하와 무관(신규코드 dedup→1회 등록)
 // 연속 실패(=모든 소스 동시 실패) N회 도달 시 자동 OFF — 영구 death 백스톱. 168 ≈ 1주일 @1h.
@@ -85,7 +85,7 @@ function syncFetchJson_(url, startedAt) {
   return { status: resp.getResponseCode(), text: resp.getContentText() };
 }
 
-/** 주 소스: ks-rewards — {success, codes:[{code, validation_status}]}. validated 만 채택. */
+/** 소스: ks-rewards — {success, codes:[{code, validation_status}]}. validated 만 채택. */
 function fetchKsRewards_(url, startedAt) {
   try {
     const r = syncFetchJson_(url, startedAt);
@@ -122,7 +122,7 @@ function fetchKsRewards_(url, startedAt) {
   }
 }
 
-/** 예비 소스: kingshotdata — {coupons:[{code, until}]}. until>=오늘 만 채택. */
+/** 소스: kingshotdata — {coupons:[{code, until}]}. until>=오늘 만 채택. */
 function fetchKingshotData_(url, startedAt, today) {
   try {
     const r = syncFetchJson_(url, startedAt);
@@ -263,7 +263,7 @@ function collectSourceCodes_(startedAt, today) {
 
 /**
  * 소스를 받아 신규 유효 쿠폰만 등록한다.
- * @param {boolean} isManual 수동 실행 여부(현재는 반환 메시지 외 동작 차이 없음)
+ * @param {boolean} isManual 수동 실행 여부(수동이면 실패해도 자동 OFF 스트릭에 카운트 안 함)
  * @returns {{ok:boolean, registered?:string[], rejected?:string[], candidates?:number, source?:string, message:string}}
  */
 function runCouponSync_(isManual) {
@@ -327,7 +327,7 @@ function runCouponSync_(isManual) {
       rej: rejected.length,
       cand: candidates.length,
     });
-    // 성공(주·예비 중 하나라도 응답) → 자동 OFF 카운터 리셋. 일시 장애가 임계값에 누적되지 않게.
+    // 성공(3소스 중 하나라도 응답) → 자동 OFF 카운터 리셋. 일시 장애가 임계값에 누적되지 않게.
     PropertiesService.getScriptProperties().setProperty('SYNC_FAIL_STREAK', '0');
     logSystem_('INFO', 'sync', summary, '');
 
