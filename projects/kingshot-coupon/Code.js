@@ -655,6 +655,9 @@ function runCouponBatch_() {
 
   const processed = getProcessedSet_();
   const deadCoupons = new Set(); // 이번 실행에서 만료/무효로 판정된 쿠폰 → 이후 요청 생략
+  // redeem-레벨 비터미널 실패(RATE_LIMITED/CAPTCHA/ERROR 등) — processed 엔 들어가지만
+  // 다음 실행에서 재시도되는(터미널 아닌) 조합. remaining 계산이 '완료'로 오인하지 않게 별도 기록.
+  const nonTerminalThisRun = new Set();
   const stats = { success: 0, already: 0, disabled: agedOut, fail: 0, skip: 0, warn: 0 };
   let stoppedByTime = false;
 
@@ -777,6 +780,7 @@ function runCouponBatch_() {
         );
       } else {
         stats.fail++;
+        nonTerminalThisRun.add(key); // 비터미널 실패 → 다음 실행 재시도 대상(remaining 에 포함시키려 기록)
         if (
           result.result === 'RATE_LIMITED' ||
           result.result === 'CAPTCHA_REQUIRED' ||
@@ -798,7 +802,8 @@ function runCouponBatch_() {
   }
 
   const elapsedSec = Math.round((Date.now() - startTime) / 1000);
-  const apiCalls = stats.success + stats.already + stats.disabled + stats.fail;
+  // agedOut(TTL 만료로 사전 비활성 — API 호출 없음)은 건당 평균에서 제외
+  const apiCalls = stats.success + stats.already + (stats.disabled - agedOut) + stats.fail;
   const avg = apiCalls > 0 ? (elapsedSec / apiCalls).toFixed(1) : '0';
   const summary = nt(
     'md_batch_summary',
@@ -862,12 +867,14 @@ function runCouponBatch_() {
   // ── 진행 상태(A) + 남은 건수(C): 알림 멘트가 "진행 중 vs 최종 완료"를 한눈에 전하도록 ──
   // continuing = 다음 회차가 예약됨(시간초과 이어실행 또는 RL 재시도). nextDelayMs 가 단일 진실원천.
   const continuing = typeof nextDelayMs === 'number' && nextDelayMs > 0;
-  // 남은 조합 = 활성유저 × 이번 실행 살아있는 활성쿠폰 중 아직 터미널(dedup) 못 든 것.
-  // 인메모리 processed/deadCoupons 로 계산 — 추가 시트 읽기/스캔 없음.
+  // 남은 조합 = 활성유저 × 이번 실행 살아있는 활성쿠폰 중 아직 터미널(완료) 못 든 것.
+  // 인메모리로 계산 — 추가 시트 읽기/스캔 없음. processed 는 비터미널 실패도 담으므로(중복fid 안전용),
+  // 그 중 nonTerminalThisRun 에 든 건 '미완료'로 되살려 카운트(RL 재시도 경로에서 remaining=0 오표시 방지).
   let remaining = 0;
   for (const u of users) {
     for (const c of coupons) {
-      if (!deadCoupons.has(c.code) && !processed.has(`${u.fid}|${c.code}`)) {
+      const k = `${u.fid}|${c.code}`;
+      if (!deadCoupons.has(c.code) && (!processed.has(k) || nonTerminalThisRun.has(k))) {
         remaining++;
       }
     }
